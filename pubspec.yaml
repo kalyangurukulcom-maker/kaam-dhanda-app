@@ -1,0 +1,43 @@
+name: kaam_dhanda_app
+description: Kaam Dhanda - India ka #1 Worker Marketplace App
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^2.24.2
+  cloud_firestore: ^4.13.6
+  firebase_auth: ^4.16.0
+
+  # Location
+  geolocator: ^10.1.0
+
+  # Sharing & URL
+  share_plus: ^7.2.1
+  url_launcher: ^6.2.5
+
+  # File / Path
+  path_provider: ^2.1.1
+
+  # Date formatting
+  intl: ^0.18.1
+
+  # UI
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
