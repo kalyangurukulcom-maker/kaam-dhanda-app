@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace "com.kamdhanda.app"
-    compileSdkVersion 34
+    compileSdkVersion 35
 
     defaultConfig {
         applicationId "com.kamdhanda.app"
         minSdkVersion 21
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode 1
         versionName "1.0.0"
         multiDexEnabled true
@@ -22,7 +22,12 @@ android {
         release {
             signingConfig signingConfigs.debug
             minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false
         }
     }
 
