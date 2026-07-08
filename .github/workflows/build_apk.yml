@@ -1,61 +1,56 @@
 name: Build Flutter APK
-
 on: push
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: stable
           cache: true
-
       - name: Flutter pub get
         run: flutter pub get
-
-      - name: Flutter analyze (capture all errors)
-        run: flutter analyze 2>&1 | tee analyze_output.txt || true
-
-      - name: Upload analyze output
-        uses: actions/upload-artifact@v4
-        with:
-          name: dart-analyze-output
-          path: analyze_output.txt
-          retention-days: 3
-
       - name: Get valid gradle-wrapper.jar
         run: |
           flutter create --platforms=android --org com.test --project-name tmpapp /tmp/tmpapp
           cp /tmp/tmpapp/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
           sed -i 's/DEFAULT_JVM_OPTS=.*/DEFAULT_JVM_OPTS=""/' android/gradlew
           chmod +x android/gradlew
-
       - name: Build Debug APK
         env:
           JAVA_TOOL_OPTIONS: '-Xmx1536m'
-          GRADLE_OPTS: '-Dorg.gradle.daemon=false'
-        run: flutter build apk --debug 2>&1 | tee build_output.txt || true
-
+          GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx1536m'
+        run: |
+          set +e
+          flutter build apk --debug > build_output.txt 2>&1
+          BUILD_EXIT=$?
+          echo "=== flutter build exit code: $BUILD_EXIT ==="
+          cat build_output.txt
+          echo "=== APK search ==="
+          find . -path ./tmp -prune -o -name "*.apk" -print 2>/dev/null || true
+          echo "=== flutter-apk dir ==="
+          ls -la build/app/outputs/flutter-apk/ 2>&1 || true
+          echo "=== apk dir ==="
+          ls -la build/app/outputs/apk/ 2>&1 || true
+          exit $BUILD_EXIT
       - name: Upload build output
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-output
           path: build_output.txt
           retention-days: 3
-
       - name: Upload APK (if built)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kaam-dhanda-debug-apk
