@@ -19,41 +19,23 @@ jobs:
           cache: true
       - name: Flutter pub get
         run: flutter pub get
-      - name: Get valid gradle-wrapper.jar
+      - name: Fix Android build prerequisites
         run: |
           flutter create --platforms=android --org com.test --project-name tmpapp /tmp/tmpapp
           cp /tmp/tmpapp/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
           sed -i 's/DEFAULT_JVM_OPTS=.*/DEFAULT_JVM_OPTS=""/' android/gradlew
           chmod +x android/gradlew
+          cp -r /tmp/tmpapp/android/app/src/main/res/mipmap-* android/app/src/main/res/
+          echo "res directory contents:"
+          ls android/app/src/main/res/
       - name: Build Debug APK
         env:
           JAVA_TOOL_OPTIONS: '-Xmx1536m'
-          GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx1536m'
-        run: |
-          set +e
-          flutter build apk --debug > build_output.txt 2>&1
-          BUILD_EXIT=$?
-          echo "=== flutter build exit code: $BUILD_EXIT ==="
-          cat build_output.txt
-          echo "=== APK search ==="
-          find . -path ./tmp -prune -o -name "*.apk" -print 2>/dev/null || true
-          echo "=== flutter-apk dir ==="
-          ls -la build/app/outputs/flutter-apk/ 2>&1 || true
-          echo "=== apk dir ==="
-          ls -la build/app/outputs/apk/ 2>&1 || true
-          exit $BUILD_EXIT
-      - name: Upload build output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-output
-          path: build_output.txt
-          retention-days: 3
-      - name: Upload APK (if built)
-        if: always()
+          GRADLE_OPTS: '-Dorg.gradle.daemon=false'
+        run: flutter build apk --debug
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: kaam-dhanda-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: warn
           retention-days: 7
