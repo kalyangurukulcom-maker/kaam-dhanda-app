@@ -28,17 +28,19 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Generate Gradle Wrapper (if missing)
+      - name: Setup Gradle (for wrapper generation)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Generate Gradle Wrapper
         run: |
-          if [ ! -f android/gradlew ]; then
-            echo "gradlew not found — generating via 'gradle wrapper'"
-            cd android
-            gradle wrapper --gradle-version 8.10.2 --distribution-type all
-            chmod +x gradlew
-            cd ..
-          fi
-          echo "=== Gradle wrapper files ==="
-          ls -la android/gradlew android/gradle/wrapper/ 2>/dev/null || echo "Still missing!"
+          mkdir -p android/gradle/wrapper
+          cd android
+          gradle wrapper --gradle-version 8.10.2 --distribution-type all
+          chmod +x gradlew
+          echo "=== Wrapper files ==="
+          ls -la gradlew gradle/wrapper/
 
       - name: Build Debug APK
         run: flutter build apk --debug
