@@ -1,55 +1,65 @@
 name: Build Flutter APK
-
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
-
       - name: Get dependencies
         run: flutter pub get
-
       - name: Download Gradle Wrapper JAR
         run: |
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Downloading gradle-wrapper.jar for Gradle 8.10.2..."
-            mkdir -p android/gradle/wrapper
+          mkdir -p android/gradle/wrapper
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ] || [ ! -s android/gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Downloading gradle-wrapper.jar..."
             curl -fsSL -o android/gradle/wrapper/gradle-wrapper.jar \
-              "https://raw.githubusercontent.com/gradle/gradle/v8.10.2/gradle/wrapper/gradle-wrapper.jar"
-            echo "Downloaded: $(ls -lh android/gradle/wrapper/gradle-wrapper.jar)"
+              "https://github.com/gradle/gradle/raw/refs/tags/v8.10.2/gradle/wrapper/gradle-wrapper.jar"
+            echo "Size: $(ls -lh android/gradle/wrapper/gradle-wrapper.jar)"
+            file android/gradle/wrapper/gradle-wrapper.jar || true
           else
-            echo "gradle-wrapper.jar already present"
+            echo "JAR exists, checking validity..."
+            file android/gradle/wrapper/gradle-wrapper.jar || true
           fi
           chmod +x android/gradlew
-          ls -la android/gradle/wrapper/
-
-      - name: Build Debug APK
-        run: flutter build apk --debug
-
+      - name: Diagnose and Build Debug APK
+        run: |
+          echo "=== Flutter Version ==="
+          flutter --version
+          echo "=== JAR Type ==="
+          file android/gradle/wrapper/gradle-wrapper.jar || true
+          ls -lh android/gradle/wrapper/gradle-wrapper.jar
+          echo "=== android/ ls ==="
+          ls -la android/
+          echo "=== local.properties BEFORE ==="
+          cat android/local.properties 2>/dev/null || echo "NOT YET CREATED"
+          echo "=== Flutter Build Start ==="
+          set +e
+          flutter build apk --debug 2>&1
+          BUILD_EXIT=$?
+          set -e
+          echo "=== local.properties AFTER ==="
+          cat android/local.properties 2>/dev/null || echo "STILL NOT CREATED"
+          echo "=== BUILD EXIT CODE: $BUILD_EXIT ==="
+          exit $BUILD_EXIT
       - name: List APK output
         run: |
           echo "=== APK files ==="
           find build/app/outputs -name "*.apk" -ls 2>/dev/null || echo "No APK found"
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
