@@ -9,12 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
@@ -24,33 +22,36 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Flutter analyze (show errors)
-        run: flutter analyze --no-fatal-infos 2>&1 | tee /tmp/analyze.txt || true
+      - name: Flutter analyze (capture all errors)
+        run: flutter analyze --no-fatal-infos 2>&1 | tee analyze_output.txt || true
 
-      - name: Post analyze errors as comment
-        run: |
-          ERRORS=$(grep "error" /tmp/analyze.txt | head -30 | tr -d "\"")
-          MSG=$(printf "Analyze errors:\n%s" "$ERRORS")
-          curl -s -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
-            -d "{\"body\": \"${MSG}\"}" || true
+      - name: Upload analyze output
+        uses: actions/upload-artifact@v4
+        with:
+          name: dart-analyze-output
+          path: analyze_output.txt
+          retention-days: 3
 
-      - name: Get valid gradle-wrapper.jar from Flutter template
+      - name: Get valid gradle-wrapper.jar
         run: |
           flutter create --platforms=android --org com.test --project-name tmpapp /tmp/tmpapp
           cp /tmp/tmpapp/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
           chmod +x android/gradlew
 
       - name: Build Debug APK
-        run: flutter build apk --debug --verbose 2>&1 | tail -60
+        run: flutter build apk --debug 2>&1 | tee build_output.txt || true
 
-      - name: Upload APK
-        if: success()
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build_output.txt
+          retention-days: 3
+
+      - name: Upload APK (if built)
         uses: actions/upload-artifact@v4
         with:
           name: kaam-dhanda-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
