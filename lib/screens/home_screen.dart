@@ -13,6 +13,7 @@ import 'daily_checkin_screen.dart';
 import 'monthly_target_screen.dart';
 import 'candidate_status_screen.dart';
 import 'worker_cv_screen.dart';
+import 'worker_profile_screen.dart';
 
 // Widgets
 import '../widgets/live_stats_widget.dart';
