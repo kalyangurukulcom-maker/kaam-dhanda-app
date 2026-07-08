@@ -3,63 +3,59 @@ on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
           cache: true
-      - name: Get dependencies
+
+      - name: Flutter pub get
         run: flutter pub get
-      - name: Download Gradle Wrapper JAR
+
+      - name: Generate Gradle wrapper (valid JAR)
         run: |
-          mkdir -p android/gradle/wrapper
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ] || [ ! -s android/gradle/wrapper/gradle-wrapper.jar ]; then
-            curl -fsSL -o android/gradle/wrapper/gradle-wrapper.jar \
-              "https://github.com/gradle/gradle/raw/refs/tags/v8.10.2/gradle/wrapper/gradle-wrapper.jar"
-          fi
-          chmod +x android/gradlew
-          file android/gradle/wrapper/gradle-wrapper.jar
+          echo "=== Gradle version ==="
+          gradle --version
+          cd android
+          gradle wrapper --gradle-version 8.10.2 --distribution-type all
+          chmod +x gradlew
+          echo "=== Wrapper files ==="
+          ls -la gradle/wrapper/
+          file gradle/wrapper/gradle-wrapper.jar
+
+      - name: Show key Android files
+        run: |
+          echo "=== settings.gradle ==="
+          cat android/settings.gradle
+          echo "=== android/build.gradle ==="
+          cat android/build.gradle
+          echo "=== android/app/build.gradle ==="
+          cat android/app/build.gradle
+          echo "=== local.properties ==="
+          cat android/local.properties 2>/dev/null || echo "NOT FOUND (Flutter will create it)"
+
       - name: Build Debug APK
-        id: build_step
-        run: |
-          set +e
-          flutter --version > /tmp/build_log.txt 2>&1
-          echo "=== JAR ===" >> /tmp/build_log.txt
-          file android/gradle/wrapper/gradle-wrapper.jar >> /tmp/build_log.txt 2>&1
-          echo "=== local.properties BEFORE ===" >> /tmp/build_log.txt
-          cat android/local.properties >> /tmp/build_log.txt 2>/dev/null || echo "NOT FOUND" >> /tmp/build_log.txt
-          echo "=== flutter build apk ===" >> /tmp/build_log.txt
-          flutter build apk --debug >> /tmp/build_log.txt 2>&1
-          BUILD_EXIT=$?
-          echo "=== BUILD EXIT: $BUILD_EXIT ===" >> /tmp/build_log.txt
-          echo "=== local.properties AFTER ===" >> /tmp/build_log.txt
-          cat android/local.properties >> /tmp/build_log.txt 2>/dev/null || echo "NOT FOUND" >> /tmp/build_log.txt
-          cp /tmp/build_log.txt build_error.txt
-          set -e
-          exit $BUILD_EXIT
-      - name: Upload build log
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: build-log
-          path: build_error.txt
-          if-no-files-found: warn
-          retention-days: 1
+        run: flutter build apk --debug --verbose
+
       - name: List APK output
         if: success()
-        run: find build/app/outputs -name "*.apk" -ls 2>/dev/null || echo "No APK"
+        run: find build/app/outputs -name "*.apk" -ls
+
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
