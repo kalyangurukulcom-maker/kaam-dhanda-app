@@ -31,13 +31,18 @@ jobs:
       - name: Analyze Dart code
         run: flutter analyze --no-fatal-infos || true
 
-      - name: Build Debug APK (verbose)
-        run: flutter build apk --debug --verbose 2>&1 | tail -200
+      - name: Build Debug APK
+        run: flutter build apk --debug
+
+      - name: Verify APK exists
+        run: |
+          echo "=== APK files found ==="
+          find build/app/outputs -name "*.apk" -ls || echo "NO APK FOUND"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: kaam-dhanda-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
