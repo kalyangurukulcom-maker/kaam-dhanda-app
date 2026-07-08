@@ -1,26 +1,4 @@
-// ============================================================
-// FIREBASE OPTIONS
-// ============================================================
-// Yeh file aapko FlutterFire CLI se generate karni hogi:
-//
-//   Step 1: Firebase CLI install karo
-//     npm install -g firebase-tools
-//
-//   Step 2: FlutterFire CLI install karo
-//     dart pub global activate flutterfire_cli
-//
-//   Step 3: Configure karo (project root mein)
-//     flutterfire configure --project=kaam-dhanda-app
-//
-//   Yeh command automatically yeh file generate karega
-//   aur android/app/google-services.json bhi add karega.
-//
-// YA manually karo:
-//   Firebase Console → Project Settings → Your Apps
-//   → Add Android App → package: com.kamdhanda.app
-//   → Download google-services.json → android/app/ mein rakho
-// ============================================================
-
+// firebase_options.dart — placeholder (replace with real flutterfire configure output)
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
@@ -38,32 +16,31 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // ⚠️  REPLACE THESE VALUES with your actual Firebase config
-  // Firebase Console → Project Settings → General → Your Apps
-
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_ANDROID_API_KEY',           // replace karo
-    appId: '1:YOUR_APP_ID:android:XXXXX',     // replace karo
-    messagingSenderId: 'YOUR_SENDER_ID',       // replace karo
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+    authDomain: 'kaam-dhanda-app.firebaseapp.com',
     projectId: 'kaam-dhanda-app',
     storageBucket: 'kaam-dhanda-app.appspot.com',
+    messagingSenderId: '000000000000',
+    appId: '1:000000000000:web:abcdef1234567890',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+    authDomain: 'kaam-dhanda-app.firebaseapp.com',
+    projectId: 'kaam-dhanda-app',
+    storageBucket: 'kaam-dhanda-app.appspot.com',
+    messagingSenderId: '000000000000',
+    appId: '1:000000000000:android:abcdef1234567890abcdef',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY',
-    appId: '1:YOUR_APP_ID:ios:XXXXX',
-    messagingSenderId: 'YOUR_SENDER_ID',
-    projectId: 'kaam-dhanda-app',
-    storageBucket: 'kaam-dhanda-app.appspot.com',
-    iosBundleId: 'com.kamdhanda.app',
-  );
-
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'YOUR_WEB_API_KEY',
-    appId: '1:YOUR_APP_ID:web:XXXXX',
-    messagingSenderId: 'YOUR_SENDER_ID',
-    projectId: 'kaam-dhanda-app',
-    storageBucket: 'kaam-dhanda-app.appspot.com',
+    apiKey: 'AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
     authDomain: 'kaam-dhanda-app.firebaseapp.com',
+    projectId: 'kaam-dhanda-app',
+    storageBucket: 'kaam-dhanda-app.appspot.com',
+    messagingSenderId: '000000000000',
+    appId: '1:000000000000:ios:abcdef1234567890abcdef',
+    iosBundleId: 'com.kamdhanda.app',
   );
 }
