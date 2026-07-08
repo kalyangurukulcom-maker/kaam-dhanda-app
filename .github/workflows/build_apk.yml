@@ -26,41 +26,42 @@ jobs:
         run: |
           mkdir -p android/gradle/wrapper
           if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ] || [ ! -s android/gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Downloading gradle-wrapper.jar..."
             curl -fsSL -o android/gradle/wrapper/gradle-wrapper.jar \
               "https://github.com/gradle/gradle/raw/refs/tags/v8.10.2/gradle/wrapper/gradle-wrapper.jar"
-            echo "Size: $(ls -lh android/gradle/wrapper/gradle-wrapper.jar)"
-            file android/gradle/wrapper/gradle-wrapper.jar || true
-          else
-            echo "JAR exists, checking validity..."
-            file android/gradle/wrapper/gradle-wrapper.jar || true
           fi
           chmod +x android/gradlew
-      - name: Diagnose and Build Debug APK
+          file android/gradle/wrapper/gradle-wrapper.jar
+      - name: Build Debug APK
+        id: build_step
         run: |
-          echo "=== Flutter Version ==="
-          flutter --version
-          echo "=== JAR Type ==="
-          file android/gradle/wrapper/gradle-wrapper.jar || true
-          ls -lh android/gradle/wrapper/gradle-wrapper.jar
-          echo "=== android/ ls ==="
-          ls -la android/
-          echo "=== local.properties BEFORE ==="
-          cat android/local.properties 2>/dev/null || echo "NOT YET CREATED"
-          echo "=== Flutter Build Start ==="
           set +e
-          flutter build apk --debug 2>&1
+          flutter --version > /tmp/build_log.txt 2>&1
+          echo "=== JAR ===" >> /tmp/build_log.txt
+          file android/gradle/wrapper/gradle-wrapper.jar >> /tmp/build_log.txt 2>&1
+          echo "=== local.properties BEFORE ===" >> /tmp/build_log.txt
+          cat android/local.properties >> /tmp/build_log.txt 2>/dev/null || echo "NOT FOUND" >> /tmp/build_log.txt
+          echo "=== flutter build apk ===" >> /tmp/build_log.txt
+          flutter build apk --debug >> /tmp/build_log.txt 2>&1
           BUILD_EXIT=$?
+          echo "=== BUILD EXIT: $BUILD_EXIT ===" >> /tmp/build_log.txt
+          echo "=== local.properties AFTER ===" >> /tmp/build_log.txt
+          cat android/local.properties >> /tmp/build_log.txt 2>/dev/null || echo "NOT FOUND" >> /tmp/build_log.txt
+          cp /tmp/build_log.txt build_error.txt
           set -e
-          echo "=== local.properties AFTER ==="
-          cat android/local.properties 2>/dev/null || echo "STILL NOT CREATED"
-          echo "=== BUILD EXIT CODE: $BUILD_EXIT ==="
           exit $BUILD_EXIT
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build_error.txt
+          if-no-files-found: warn
+          retention-days: 1
       - name: List APK output
-        run: |
-          echo "=== APK files ==="
-          find build/app/outputs -name "*.apk" -ls 2>/dev/null || echo "No APK found"
+        if: success()
+        run: find build/app/outputs -name "*.apk" -ls 2>/dev/null || echo "No APK"
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: kaam-dhanda-debug-apk
