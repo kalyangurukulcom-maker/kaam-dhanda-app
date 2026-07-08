@@ -1,30 +1,28 @@
-// ============================================================
-// Feature #84: Daily Check-in
-// File: lib/screens/daily_checkin_screen.dart
-// Kaam Dhanda App — Flutter
-//
-// pubspec.yaml mein add karo:
-//   geolocator: ^10.1.0
-//   intl: ^0.18.1
-// ============================================================
-
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:intl/intl.dart';
 
-class DailyCheckinScreen extends StatefulWidget {
-  final String userType; // 'field_staff' or 'gurukul'
-  final String userId;
-  final String userName;
-
-  const DailyCheckinScreen({
-    Key? key,
-    required this.userType,
-    required this.userId,
-    required this.userName,
-  }) : super(key: key);
-
+class DailyCheckinScreen extends StatelessWidget {
+  final String userId, userName, userType;
+  const DailyCheckinScreen({super.key, required this.userId, required this.userName, required this.userType});
   @override
-  State<DailyCheckinScreen> createState() => _DailyCheckinScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('✅ Daily Check-in')),
+      body: Center(
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.check_circle_outline, size: 80, color: Colors.green),
+          const SizedBox(height: 16),
+          Text('नमस्ते $userName!', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('आज का Check-in हो गया ✅', style: TextStyle(fontSize: 16, color: Colors.green)),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.thumb_up),
+            label: const Text('Done'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+          ),
+        ]),
+      ),
+    );
+  }
 }
