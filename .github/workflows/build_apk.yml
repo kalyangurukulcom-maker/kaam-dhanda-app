@@ -24,22 +24,27 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Flutter analyze (show Dart errors)
-        run: flutter analyze --no-fatal-infos || true
+      - name: Flutter analyze (show errors)
+        run: flutter analyze --no-fatal-infos 2>&1 | tee /tmp/analyze.txt || true
+
+      - name: Post analyze errors as comment
+        run: |
+          ERRORS=$(grep "error" /tmp/analyze.txt | head -30 | tr -d "\"")
+          MSG=$(printf "Analyze errors:\n%s" "$ERRORS")
+          curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            -d "{\"body\": \"${MSG}\"}" || true
 
       - name: Get valid gradle-wrapper.jar from Flutter template
         run: |
           flutter create --platforms=android --org com.test --project-name tmpapp /tmp/tmpapp
           cp /tmp/tmpapp/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
           chmod +x android/gradlew
-          file android/gradle/wrapper/gradle-wrapper.jar
 
       - name: Build Debug APK
-        run: flutter build apk --debug
-
-      - name: List APK
-        if: success()
-        run: find build/app/outputs -name "*.apk" -ls
+        run: flutter build apk --debug --verbose 2>&1 | tail -60
 
       - name: Upload APK
         if: success()
