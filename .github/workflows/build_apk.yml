@@ -27,103 +27,17 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Save custom Android files
+      - name: Get valid gradle-wrapper.jar from Flutter template
         run: |
-          cp android/app/google-services.json /tmp/google-services.json 2>/dev/null && echo "Saved GSS" || echo "No GSS found"
-
-      - name: Regenerate Android folder (Flutter generates valid Gradle JAR)
-        run: |
-          rm -rf android
-          flutter create --platforms=android --org com.kamdhanda --project-name kaam_dhanda_app .
+          flutter create --platforms=android --org com.test --project-name tmpapp /tmp/tmpapp
+          cp /tmp/tmpapp/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
           chmod +x android/gradlew
-          echo "=== JAR type ==="
           file android/gradle/wrapper/gradle-wrapper.jar
-          echo "=== Generated settings.gradle ==="
-          cat android/settings.gradle
-          echo "=== Generated app/build.gradle ==="
-          cat android/app/build.gradle
-
-      - name: Add Firebase support to Android
-        run: |
-          # Add com.google.gms.google-services to settings.gradle plugins block
-          python3 << 'PYEOF'
-          import re
-          
-          # Update settings.gradle
-          with open('android/settings.gradle', 'r') as f:
-              s = f.read()
-          
-          # Add google-services plugin after kotlin plugin declaration
-          s = re.sub(
-              r'(id "org.jetbrains.kotlin.android"[^
-]*)',
-              r'\1\n    id "com.google.gms.google-services" version "4.4.0" apply false',
-              s
-          )
-          with open('android/settings.gradle', 'w') as f:
-              f.write(s)
-          print("=== Updated settings.gradle ===")
-          print(open('android/settings.gradle').read())
-          
-          # Update app/build.gradle
-          with open('android/app/build.gradle', 'r') as f:
-              a = f.read()
-          
-          # Add google-services plugin
-          a = a.replace(
-              'id "dev.flutter.flutter-gradle-plugin"',
-              'id "dev.flutter.flutter-gradle-plugin"\n    id "com.google.gms.google-services"'
-          )
-          # Add multiDexEnabled to defaultConfig
-          a = a.replace(
-              'versionName flutterVersionName',
-              'versionName flutterVersionName\n        multiDexEnabled true'
-          )
-          # Add Firebase dependencies before flutter {} block
-          a = a.replace(
-              'flutter {',
-              'dependencies {\n    implementation platform(\'com.google.firebase:firebase-bom:32.7.0\')\n    implementation \'com.google.firebase:firebase-analytics\'\n    implementation \'androidx.multidex:multidex:2.0.1\'\n}\n\nflutter {'
-          )
-          with open('android/app/build.gradle', 'w') as f:
-              f.write(a)
-          print("=== Updated app/build.gradle ===")
-          print(open('android/app/build.gradle').read())
-          PYEOF
-
-      - name: Restore google-services.json
-        run: |
-          if [ -f /tmp/google-services.json ]; then
-            cp /tmp/google-services.json android/app/google-services.json
-            echo "Restored google-services.json"
-          else
-            echo "Creating placeholder google-services.json"
-            cat > android/app/google-services.json << 'EOF'
-          {
-            "project_info": {
-              "project_number": "123456789012",
-              "project_id": "kaam-dhanda-placeholder",
-              "storage_bucket": "kaam-dhanda-placeholder.appspot.com"
-            },
-            "client": [{
-              "client_info": {
-                "mobilesdk_app_id": "1:123456789012:android:abc123def456abc1",
-                "android_client_info": {
-                  "package_name": "com.kamdhanda.kaam_dhanda_app"
-                }
-              },
-              "api_key": [{"current_key": "AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}],
-              "services": {}
-            }],
-            "configuration_version": "1"
-          }
-          EOF
-          fi
-          cat android/app/google-services.json
 
       - name: Build Debug APK
         run: flutter build apk --debug
 
-      - name: List APK output
+      - name: List APK
         if: success()
         run: find build/app/outputs -name "*.apk" -ls
 
