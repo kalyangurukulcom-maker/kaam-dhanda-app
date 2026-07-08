@@ -795,7 +795,7 @@ class _HeroBanner extends StatelessWidget {
                 Text(
                   'अपनी Skill की नई Jobs सीधे\nWhatsApp पर पाएं — बिल्कुल Free!',
                   style: TextStyle(
-                      color: Colors.white80, fontSize: 13, height: 1.4),
+                      color: Colors.white70, fontSize: 13, height: 1.4),
                 ),
                 SizedBox(height: 10),
                 Row(
