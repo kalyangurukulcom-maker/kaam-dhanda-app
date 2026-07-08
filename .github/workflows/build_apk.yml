@@ -28,19 +28,19 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Setup Gradle (for wrapper generation)
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
-
-      - name: Generate Gradle Wrapper
+      - name: Download Gradle Wrapper JAR
         run: |
-          mkdir -p android/gradle/wrapper
-          cd android
-          gradle wrapper --gradle-version 8.10.2 --distribution-type all
-          chmod +x gradlew
-          echo "=== Wrapper files ==="
-          ls -la gradlew gradle/wrapper/
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Downloading gradle-wrapper.jar for Gradle 8.10.2..."
+            mkdir -p android/gradle/wrapper
+            curl -fsSL -o android/gradle/wrapper/gradle-wrapper.jar \
+              "https://raw.githubusercontent.com/gradle/gradle/v8.10.2/gradle/wrapper/gradle-wrapper.jar"
+            echo "Downloaded: $(ls -lh android/gradle/wrapper/gradle-wrapper.jar)"
+          else
+            echo "gradle-wrapper.jar already present"
+          fi
+          chmod +x android/gradlew
+          ls -la android/gradle/wrapper/
 
       - name: Build Debug APK
         run: flutter build apk --debug
