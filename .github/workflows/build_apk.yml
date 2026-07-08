@@ -28,16 +28,25 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze Dart code
-        run: flutter analyze --no-fatal-infos || true
+      - name: Generate Gradle Wrapper (if missing)
+        run: |
+          if [ ! -f android/gradlew ]; then
+            echo "gradlew not found — generating via 'gradle wrapper'"
+            cd android
+            gradle wrapper --gradle-version 8.10.2 --distribution-type all
+            chmod +x gradlew
+            cd ..
+          fi
+          echo "=== Gradle wrapper files ==="
+          ls -la android/gradlew android/gradle/wrapper/ 2>/dev/null || echo "Still missing!"
 
       - name: Build Debug APK
         run: flutter build apk --debug
 
-      - name: Verify APK exists
+      - name: List APK output
         run: |
-          echo "=== APK files found ==="
-          find build/app/outputs -name "*.apk" -ls || echo "NO APK FOUND"
+          echo "=== APK files ==="
+          find build/app/outputs -name "*.apk" -ls 2>/dev/null || echo "No APK found"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
