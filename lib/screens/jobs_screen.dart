@@ -50,7 +50,7 @@ class _JobsScreenState extends State<JobsScreen> with SingleTickerProviderStateM
         return;
       }
       await _firestore.collection('job_applications').add({
-        'jobId!: jobId,
+        'jobId': jobId,
         'jobTitle': job['title'] ?? '',
         'employerUid': job['employerUid'] ?? '',
         'applicantUid': user.uid,
@@ -63,7 +63,7 @@ class _JobsScreenState extends State<JobsScreen> with SingleTickerProviderStateM
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Application submitted ✓'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Application submitted â'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -119,7 +119,7 @@ class _JobsScreenState extends State<JobsScreen> with SingleTickerProviderStateM
                       : _firestore.collection('jobs').where('active', isEqualTo: true).where('category', isEqualTo: _filterCategory).orderBy('postedAt', descending: true).snapshots(),
                   builder: (context, snap) {
                     if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                    if (!snap.hasData || snap.data!.docs.isEmpty) return const Center(child: Text('कोई job नहीं मिली'));
+                    if (!snap.hasData || snap.data!.docs.isEmpty) return const Center(child: Text('à¤à¥à¤ job à¤¨à¤¹à¥à¤ à¤®à¤¿à¤²à¥'));
                     return ListView.builder(
                       itemCount: snap.data!.docs.length,
                       itemBuilder: (context, i) {
@@ -134,8 +134,8 @@ class _JobsScreenState extends State<JobsScreen> with SingleTickerProviderStateM
                               children: [
                                 Row(children: [Expanded(child: Text(d['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))), Chip(label: Text(d['category'] ?? ''), backgroundColor: Colors.blue[100])]),
                                 Text(d['company'] ?? '', style: TextStyle(color: Colors.grey[700])),
-                                if (d['salary'] != null) Text('💰 ${d['salary']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
-                                if (d['location'] != null) Text('📍 ${d['location']}'),
+                                if (d['salary'] != null) Text('ð° ${d['salary']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
+                                if (d['location'] != null) Text('ð ${d['location']}'),
                                 const SizedBox(height: 8),
                                 SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => _applyJob(doc.id, d), style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[800], foregroundColor: Colors.white), child: const Text('Apply '))),
                               ],
@@ -153,7 +153,7 @@ class _JobsScreenState extends State<JobsScreen> with SingleTickerProviderStateM
             stream: _firestore.collection('job_applications').where('applicantUid', isEqualTo: user.uid).orderBy('appliedAt', descending: true).snapshots(),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              if (!snap.hasData || snap.data!.docs.isEmpty) return const Center(child: Text('आपने कोई job apply  नहीं की'));
+              if (!snap.hasData || snap.data!.docs.isEmpty) return const Center(child: Text('à¤à¤ªà¤¨à¥ à¤à¥à¤ job apply  à¤¨à¤¹à¥à¤ à¤à¥'));
               return ListView.builder(
                 itemCount: snap.data!.docs.length,
                 itemBuilder: (context, i) {
