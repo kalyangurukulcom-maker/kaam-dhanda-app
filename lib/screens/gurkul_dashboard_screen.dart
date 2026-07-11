@@ -16,16 +16,32 @@ class GurkulDashboardScreen extends StatelessWidget {
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gurk5l Dashboard'),
+        title: const Text('Gurkul Dashboard'),
         backgroundColor: Colors.deepPurple[700],
         foregroundColor: Colors.white,
-        actions: [IconButton(icon: const Icon(Icons.logout), onPressed: () async { await FirebaseAuth.instance.signOut(); if (context.mounted) Navigator.of(context).pop(); })],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) Navigator.of(context).pop();
+            },
+          ),
+        ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('gurkul_applications').doc(user.uid).snapshots(),
+        stream: FirebaseFirestore.instance
+            .collection('gurkul_applications')
+            .doc(user.uid)
+            .snapshots(),
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snap.hasData || !snap.data!.exists) return _buildQueryFallback(user.uid);
+          // Also try to get by uid field if doc id doesn't match
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snap.hasData || !snap.data!.exists) {
+            return _buildQueryFallback(user.uid);
+          }
           final d = snap.data!.data() as Map<String, dynamic>;
           return _buildDashboard(d, context);
         },
@@ -35,10 +51,33 @@ class GurkulDashboardScreen extends StatelessWidget {
 
   Widget _buildQueryFallback(String uid) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('gurkul_applications').where('uid', isEqualTo: uid).orderBy('createdAt', descending: true).limit(1).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('gurkul_applications')
+          .where('uid', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .snapshots(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (!snap.hasData || snap.data!.docs.isEmpty) return const Center(child: Text('à¤•à¥‹à¤ˆ application à¤¨à¤¹à¥€à¤‚ à¤®à¤¿à¤²à¥€'));
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snap.hasData || snap.data!.docs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.school_outlined, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('Ã Â¤Â•Ã Â¥Â‹Ã Â¤Âˆ application Ã Â¤Â¨Ã Â¤Â¹Ã Â¥Â€Ã Â¤Â‚ Ã Â¤Â®Ã Â¤Â¿Ã Â¤Â²Ã Â¥Â€', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                  SizedBox(height: 8),
+                  Text('Ã Â¤ÂªÃ Â¤Â¹Ã Â¤Â²Ã Â¥Â‡ Apply tab Ã Â¤Â¸Ã Â¥Â‡ application Ã Â¤Â•Ã Â¤Â°Ã Â¥Â‡Ã Â¤Â‚', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          );
+        }
         final d = snap.data!.docs.first.data() as Map<String, dynamic>;
         return _buildDashboard(d, context);
       },
@@ -47,8 +86,143 @@ class GurkulDashboardScreen extends StatelessWidget {
 
   Widget _buildDashboard(Map<String, dynamic> d, BuildContext context) {
     final status = d['status'] ?? 'Pending';
-    final statusColor = status == 'Selected' ? Colors.green : status == 'Rejected' ? Colors.red : status == 'Joined' ? Colors.blue : Colors.orange;
+    final statusColor = status == 'Selected'
+        ? Colors.green
+        : status == 'Rejected'
+            ? Colors.red
+            : status == 'Joined'
+                ? Colors.blue
+                : Colors.orange;
+
     final steps = ['Applied', 'Document Verified', 'Interview', 'Selected', 'Joining'];
     final currentStep = _getStepIndex(status);
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Card(color: Colors.deepPurple[50], child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [CircleAvatar(radius: 32, backgroundColor: Colors.deepPurple[200], child: Text((d['name'] ?? '?')[0].toUpperCase(), style: const TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold))), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(d['name'] ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text(d['phone'] ?? ''), Text('Course: ${d['course'] ?? ''}')]’™%Ò’’’’À¢6öç7B6—¦VD&÷‚††V–v‡C¢b’À¢6VçFW"†6†–ÆC¢6öçF–æW"‡FF–æs¢6öç7BVFvT–ç6WG2ç7–ÖÖWG&–2††÷&—¦öçFÃ¢#BÂfW'F–6Ã¢"’ÂFV6÷&F–öã¢&÷„FV6÷&F–öâ†6öÆ÷#¢7FGW46öÆ÷"Â&÷&FW%&F—W3¢&÷&FW%&F—W2æ6—&7VÆ"ƒ#B’’Â6†–ÆC¢FW‡B‚u7FGW3¢G7FGW2rÂ7G–ÆS¢6öç7BFW‡E7G–ÆR†6öÆ÷#¢6öÆ÷'2çv†—FRÂföçEvV–v‡C¢föçEvV–v‡Bæ&öÆBÂföçE6—¦S¢‚’’’’À¢6öç7B6—¦VD&÷‚††V–v‡C¢#B’À¢6öç7BFW‡B‚tÆ–6F–öâ&öw&W73¢rÂ7G–ÆS¢FW‡E7G–ÆR†föçEvV–v‡C¢föçEvV–v‡Bæ&öÆBÂföçE6—¦S¢b’’À¢ââç7FW2æ4Ö‚’æVçG&–W2æÖ‚†VçG'’’²f–æÂ–G‚ÒVçG'’æ¶W“²f–æÂ7FWÒVçG'’çfÇVS²f–æÂ—4FöæRÒ–G‚Â7W'&VçE7FW²f–æÂ—47W'&VçBÒ–G‚ÓÒ7W'&VçE7FW²&WGW&âFF–ær‡FF–æs¢6öç7BVFvT–ç6WG2æöæÇ’†&÷GFöÓ¢‚’Â6†–ÆC¢&÷r†6†–ÆG&Vã¢´6öçF–æW"‡v–GFƒ¢3"Â†V–v‡C¢3"ÂFV6÷&F–öã¢&÷„FV6÷&F–öâ‡6†S¢&÷…6†Ræ6—&6ÆRÂ6öÆ÷#¢—4FöæRò6öÆ÷'2æw&VVâ¢—47W'&VçBò6öÆ÷'2æFVWW'ÆR¢6öÆ÷'2æw&W•³3Ò’Â6†–ÆC¢–6öâ†—4FöæRò–6öç2æ6†V6²¢—47W'&VçBò–6öç2ç&F–õö'WGFöåö6†V6¶VB¢–6öç2æ6—&6ÆRÂ6öÆ÷#¢—4FöæRÇÂ—47W'&VçBò6öÆ÷'2çv†—FR¢6öÆ÷'2æw&W’Â6—¦S¢b’’Â6öç7B6—¦VD&÷‚‡v–GFƒ¢"’ÂFW‡B‡7FWÂ7G–ÆS¢FW‡E7G–ÆR†föçEvV–v‡C¢—47W'&VçBòföçEvV–v‡Bæ&öÆB¢föçEvV–v‡Bææ÷&ÖÂÂ6öÆ÷#¢—47W'&VçBò6öÆ÷'2æFVWW'ÆR¢—4FöæRò6öÆ÷'2æw&VVâ¢6öÆ÷'2æw&W’’•Ò’“²Ò’À¢Ò’“°¢Ð ¢–çBövWE7FW–æFW‚…7G&–ær7FGW2’°¢7v—F6‚‡7FGW2’²66RuVæF–ærs¢&WGW&â²66RtFö7VÖVçBfW&–f–VBs¢&WGW&â²66Rt–çFW'f–Wr66†VGVÆVBs¢&WGW&â#²66Ru6VÆV7FVBs¢&WGW&â3²66Rt¦ö–æVBs¢&WGW&âC²FVfVÇC¢&WGW&â²Ð¢Ð§Ð 
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Profile Card
+          Card(
+            color: Colors.deepPurple[50],
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.deepPurple[200],
+                    child: Text(
+                      (d['name'] ?? '?')[0].toUpperCase(),
+                      style: const TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(d['name'] ?? '', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(d['phone'] ?? '', style: TextStyle(color: Colors.grey[600])),
+                        Text('Course: ${d['course'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Status Badge
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Text(
+                'Status: $status',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Progress Steps
+          const Text('Application Progress:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 12),
+          ...steps.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final step = entry.value;
+            final isDone = idx < currentStep;
+            final isCurrent = idx == currentStep;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isDone ? Colors.green : isCurrent ? Colors.deepPurple : Colors.grey[300],
+                    ),
+                    child: Icon(
+                      isDone ? Icons.check : isCurrent ? Icons.radio_button_checked : Icons.circle,
+                      color: isDone || isCurrent ? Colors.white : Colors.grey,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    step,
+                    style: TextStyle(
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrent ? Colors.deepPurple : isDone ? Colors.green : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          const SizedBox(height: 24),
+
+          // Info Cards
+          if (d['joiningDate'] != null)
+            Card(
+              color: Colors.green[50],
+              child: ListTile(
+                leading: const Icon(Icons.calendar_today, color: Colors.green),
+                title: const Text('Joining Date'),
+                subtitle: Text(d['joiningDate'].toString()),
+              ),
+            ),
+
+          if (d['remarks'] != null && d['remarks'].toString().isNotEmpty)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.note),
+                title: const Text('Remarks'),
+                subtitle: Text(d['remarks'].toString()),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  int _getStepIndex(String status) {
+    switch (status) {
+      case 'Pending': return 0;
+      case 'Document Verified': return 1;
+      case 'Interview Scheduled': return 2;
+      case 'Selected': return 3;
+      case 'Joined': return 4;
+      case 'Rejected': return 0;
+      default: return 0;
+    }
+  }
+}
