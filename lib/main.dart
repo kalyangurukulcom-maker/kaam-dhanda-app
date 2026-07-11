@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 
@@ -10,7 +11,6 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   } catch (e) {
-    // Firebase init failed (missing or invalid config) — app runs in demo mode
     debugPrint('Firebase init skipped: $e');
   }
   runApp(const KaamDhandaApp());
@@ -18,7 +18,6 @@ void main() async {
 
 class KaamDhandaApp extends StatelessWidget {
   const KaamDhandaApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -30,7 +29,7 @@ class KaamDhandaApp extends StatelessWidget {
           primary: const Color(0xFF1565C0),
         ),
         useMaterial3: true,
-        fontFamily: 'Roboto',
+        textTheme: GoogleFonts.hindTextTheme(),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black87,
