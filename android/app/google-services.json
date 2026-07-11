@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "000000000000",
+    "project_number": "64638957396",
     "project_id": "kaam-dhanda-app",
     "storage_bucket": "kaam-dhanda-app.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:abcdef1234567890abcdef",
+        "mobilesdk_app_id": "1:64638957396:android:9640b9c33dc5b5cc88fac1",
         "android_client_info": {
           "package_name": "com.kamdhanda.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+          "current_key": "AIzaSyBIoNzuRNNIKPKhwS-zzYMiROD68GHvIJA"
         }
       ],
       "services": {
