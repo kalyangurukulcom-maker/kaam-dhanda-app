@@ -67,7 +67,7 @@ class _GrameenSathiScreenState extends State<GrameenSathiScreen>
       _districtCtrl.clear();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lead जमा हो गया ✓'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Lead à¤à¤®à¤¾ à¤¹à¥ à¤à¤¯à¤¾ â'), backgroundColor: Colors.green),
         );
         _tabs.animateTo(1);
       }
@@ -105,27 +105,27 @@ class _GrameenSathiScreenState extends State<GrameenSathiScreen>
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                const Text('नया Lead जोडें', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text('à¤¨à¤¯à¤¾ Lead à¤à¥à¤¡à¥à¤', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Lead का नाम *', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Lead à¤à¤¾ à¤¨à¤¾à¤® *', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Lead का $Phone *', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Lead à¤à¤¾ Phone *', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _villageCtrl,
-                  decoration: const InputDecoration(labelText: 'गाँव', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'à¤à¤¾à¤à¤µ', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _districtCtrl,
-                  decoration: const InputDecoration(labelText: 'जिला', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'à¤à¤¿à¤²à¤¾', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -146,7 +146,7 @@ class _GrameenSathiScreenState extends State<GrameenSathiScreen>
                     ),
                     child: _loading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Lead Submit करें', style: TextStyle(fontSize: 16)),
+                        : const Text('Lead Submit à¤à¤°à¥à¤', style: TextStyle(fontSize: 16)),
                   ),
                 ),
               ],
@@ -165,7 +165,7 @@ class _GrameenSathiScreenState extends State<GrameenSathiScreen>
                       return const Center(child: CircularProgressIndicator());
                     }
                     if (!snap.hasData || snap.data!.docs.isEmpty) {
-                      return const Center(child: Text('कोई lead नहीं मिला'));
+                      return const Center(child: Text('à¤à¥à¤ lead à¤¨à¤¹à¥à¤ à¤®à¤¿à¤²à¤¾'));
                     }
                     final docs = snap.data!.docs;
                     return ListView.builder(
@@ -176,7 +176,7 @@ class _GrameenSathiScreenState extends State<GrameenSathiScreen>
                           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                           child: ListTile(
                             title: Text(d['leadName'] ?? ''),
-                            subtitle: Text('${d['leadPhone']} • ${d['service']}'),
+                            subtitle: Text('${d['leadPhone']} â¢ ${d['service']}'),
                             trailing: Chip(
                               label: Text(d['status'] ?? 'New'),
                               backgroundColor: d['status'] == 'Converted'
