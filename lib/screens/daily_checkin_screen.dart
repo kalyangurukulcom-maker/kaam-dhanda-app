@@ -1,27 +1,28 @@
 import 'package:flutter/material.dart';
 
 class DailyCheckinScreen extends StatelessWidget {
-  final String userId, userName, userType;
-  const DailyCheckinScreen({super.key, required this.userId, required this.userName, required this.userType});
+  final String? userId;
+  const DailyCheckinScreen({super.key, this.userId});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('✅ Daily Check-in')),
-      body: Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.check_circle_outline, size: 80, color: Colors.green),
-          const SizedBox(height: 16),
-          Text('नमस्ते $userName!', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('आज का Check-in हो गया ✅', style: TextStyle(fontSize: 16, color: Colors.green)),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.thumb_up),
-            label: const Text('Done'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-          ),
-        ]),
+      appBar: AppBar(
+        title: const Text('Daily Check-in'),
+        backgroundColor: const Color(0xFF1A237E),
+        foregroundColor: Colors.white,
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline, size: 64, color: Color(0xFF1A237E)),
+            SizedBox(height: 16),
+            Text('Daily Check-in', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            SizedBox(height: 8),
+            Text('Coming Soon', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          ],
+        ),
       ),
     );
   }
