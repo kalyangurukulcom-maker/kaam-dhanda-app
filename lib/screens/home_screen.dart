@@ -1,634 +1,382 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-// Screens
-import 'worker_marketplace_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'jobs_screen.dart';
-import 'nearby_workers_screen.dart';
-import 'testimonials_screen.dart';
 import 'grameen_sathi_screen.dart';
-import 'job_alert_subscription.dart';
-import 'employer_job_management_screen.dart';
-import 'daily_checkin_screen.dart';
-import 'monthly_target_screen.dart';
-import 'candidate_status_screen.dart';
-import 'worker_cv_screen.dart';
-import 'worker_profile_screen.dart';
+import 'nearby_workers_screen.dart';
+import 'worker_marketplace_screen.dart';
 
-// Widgets
-import '../widgets/live_stats_widget.dart';
-import '../widgets/quick_cta_bar.dart';
-import '../widgets/worker_availability_widget.dart';
-import '../widgets/available_today_filter.dart';
-
-// ============================================================
-// User profile — Firebase Auth se real data
-// ============================================================
-class _UserProfile {
-  final String uid;
-  final String name;
-  final String phone;
-  final String skill;
-  final String city;
-
-  const _UserProfile({
-    required this.uid,
-    required this.name,
-    required this.phone,
-    this.skill = '',
-    this.city = '',
-  });
-
-  String get initial => name.isNotEmpty ? name[0].toUpperCase() : 'U';
-}
-
-// ============================================================
-// HomeScreen — Firebase Auth se real user data load karo
-// ============================================================
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
+  final Map<String, dynamic>? args;
+  const HomeScreen({super.key, this.args});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
-  _UserProfile? _profile;
-  bool _loading = true;
+  int _selectedIndex = 0;
+  String _phone = '';
+  String _userType = 'guest';
+  String _docId = '';
+  String _name = '';
+  Map<String, dynamic>? _profileData;
+  bool _loadingProfile = true;
 
   @override
-  void initState() {
-    super.initState();
-    _loadProfile();
+  void initState() { super.initState(); _initUser(); }
+
+  Future<void> _initUser() async {
+    if (widget.args != null && (widget.args!['phone'] as String? ?? '').isNotEmpty) {
+      _phone = widget.args!['phone'] ?? '';
+      _userType = widget.args!['userType'] ?? 'guest';
+      _docId = widget.args!['docId'] ?? '';
+      _name = widget.args!['name'] ?? '';
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      _phone = prefs.getString('user_phone') ?? '';
+      _userType = prefs.getString('user_type') ?? 'guest';
+      _docId = prefs.getString('user_doc_id') ?? '';
+      _name = prefs.getString('user_name') ?? '';
+    }
+    if (_docId.isNotEmpty && _userType != 'guest') {
+      final col = _userType == 'field_staff' ? 'field_staff_registrations'
+                : _userType == 'gurkul' ? 'gurkul_applications'
+                : 'workers';
+      try {
+        final d = await FirebaseFirestore.instance.collection(col).doc(_docId).get();
+        if (d.exists) _profileData = d.data();
+      } catch (_) {}
+    }
+    if (mounted) setState(() => _loadingProfile = false);
   }
 
-  Future<void> _loadProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      if (mounted) {
-        setState(() {
-          _profile = const _UserProfile(
-            uid: 'guest',
-            name: 'Guest User',
-            phone: '',
-          );
-          _loading = false;
-        });
-      }
-      return;
-    }
-
-    final uid = user.uid;
-    final phone = (user.phoneNumber ?? '').replaceFirst('+91', '');
-
-    // Try workers collection first
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('workers')
-          .where('uid', isEqualTo: uid)
-          .limit(1)
-          .get();
-      if (snap.docs.isNotEmpty) {
-        final d = snap.docs.first.data();
-        if (mounted) {
-          setState(() {
-            _profile = _UserProfile(
-              uid: uid,
-              name: d['name'] ?? phone,
-              phone: d['phone'] ?? phone,
-              skill: d['skill'] ?? d['category'] ?? '',
-              city: d['city'] ?? d['district'] ?? '',
-            );
-            _loading = false;
-          });
-        }
-        return;
-      }
-    } catch (_) {}
-
-    // Try field_staff_registrations
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('field_staff_registrations')
-          .where('uid', isEqualTo: uid)
-          .limit(1)
-          .get();
-      if (snap.docs.isNotEmpty) {
-        final d = snap.docs.first.data();
-        if (mounted) {
-          setState(() {
-            _profile = _UserProfile(
-              uid: uid,
-              name: d['name'] ?? phone,
-              phone: d['phone'] ?? phone,
-              skill: d['skill'] ?? 'Field Staff',
-              city: d['district'] ?? '',
-            );
-            _loading = false;
-          });
-        }
-        return;
-      }
-    } catch (_) {}
-
-    // Try gurkul_applications
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('gurkul_applications')
-          .where('uid', isEqualTo: uid)
-          .limit(1)
-          .get();
-      if (snap.docs.isNotEmpty) {
-        final d = snap.docs.first.data();
-        if (mounted) {
-          setState(() {
-            _profile = _UserProfile(
-              uid: uid,
-              name: d['name'] ?? phone,
-              phone: d['phone'] ?? phone,
-              skill: 'Gurkul Sathi',
-              city: d['address'] ?? '',
-            );
-            _loading = false;
-          });
-        }
-        return;
-      }
-    } catch (_) {}
-
-    // Logged in but no Firestore profile — use phone as name
-    if (mounted) {
-      setState(() {
-        _profile = _UserProfile(
-          uid: uid,
-          name: phone.isNotEmpty ? '+91 $phone' : 'User',
-          phone: phone,
-        );
-        _loading = false;
-      });
-    }
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (mounted) Navigator.pushReplacementNamed(context, '/login');
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_loadingProfile) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Color(0xFF1565C0),
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
     }
-
-    final profile = _profile!;
-
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _HomePage(profile: profile),
-          const _WorkerPage(),
-          const _JobsPage(),
-          _StaffPage(profile: profile),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF0F4F8),
+      body: _buildBody(),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) {
-          HapticFeedback.selectionClick();
-          setState(() => _currentIndex = i);
-        },
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFF1565C0).withOpacity(0.12),
         destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home'),
-          NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people),
-              label: 'Workers'),
-          NavigationDestination(
-              icon: Icon(Icons.work_outline),
-              selectedIcon: Icon(Icons.work),
-              label: 'Jobs'),
-          NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'My Profile'),
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: Color(0xFF1565C0)), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.work_outline), selectedIcon: Icon(Icons.work, color: Color(0xFF1565C0)), label: 'Jobs'),
+          NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people, color: Color(0xFF1565C0)), label: 'Workers'),
+          NavigationDestination(icon: Icon(Icons.location_on_outlined), selectedIcon: Icon(Icons.location_on, color: Color(0xFF1565C0)), label: 'Nearby'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person, color: Color(0xFF1565C0)), label: 'Profile'),
         ],
       ),
     );
   }
-}
 
-// ============================================================
-// Home Tab
-// ============================================================
-class _HomePage extends StatelessWidget {
-  final _UserProfile profile;
-  const _HomePage({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            Text('🌾', style: TextStyle(fontSize: 22)),
-            SizedBox(width: 8),
-            Text('Kaam Dhanda',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => JobAlertSubscriptionScreen(
-                  workerId: profile.uid,
-                  workerName: profile.name,
-                  workerPhone: profile.phone,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Availability card
-            AvailabilityToggleCard(
-              workerId: profile.uid,
-              workerName: profile.name,
-            ),
-            const SizedBox(height: 16),
-
-            // Live Stats
-            const LiveStatsWidget(),
-            const SizedBox(height: 20),
-
-            // Available Today strip
-            AvailableTodaySection(
-              onSeeAll: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const WorkerMarketplaceScreen())),
-              onHire: (id, data) => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => WorkerProfileScreen(workerId: id))),
-            ),
-
-            // Quick Actions Grid
-            const SizedBox(height: 16),
-            const Text('Quick Actions',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _QuickActionsGrid(profile: profile),
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-      bottomNavigationBar: QuickCtaBar(
-        onWorkerRegister: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => WorkerCvScreen(workerId: profile.uid))),
-        onJobSearch: () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const JobsScreen())),
-        onHireWorker: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const WorkerMarketplaceScreen())),
-      ),
-    );
+  Widget _buildBody() {
+    switch (_selectedIndex) {
+      case 1: return const JobsScreen();
+      case 2: return const WorkerMarketplaceScreen();
+      case 3: return const NearbyWorkersScreen();
+      case 4: return _profileTab();
+      default: return _homeTab();
+    }
   }
-}
 
-// ============================================================
-// Quick Actions Grid
-// ============================================================
-class _QuickActionsGrid extends StatelessWidget {
-  final _UserProfile profile;
-  const _QuickActionsGrid({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = [
-      (
-        '🏪',
-        'Marketplace',
-        () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const WorkerMarketplaceScreen()))
-      ),
-      (
-        '📍',
-        'Nearby',
-        () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const NearbyWorkersScreen()))
-      ),
-      (
-        '💼',
-        'My Jobs',
-        () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const JobsScreen()))
-      ),
-      (
-        '🌾',
-        'Grameen Sathi',
-        () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const GrameenSathiScreen()))
-      ),
-      (
-        '🏢',
-        'Post Job',
-        () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => EmployerJobManagementScreen(
-                    employerId: profile.uid, employerName: profile.name)))
-      ),
-      (
-        '📄',
-        'My CV',
-        () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => WorkerCvScreen(workerId: profile.uid)))
-      ),
-    ];
-
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.1,
-      children: actions.map((a) {
-        final (icon, label, onTap) = a;
-        return GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            onTap();
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2))
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(icon, style: const TextStyle(fontSize: 28)),
-                const SizedBox(height: 6),
-                Text(label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 11, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// ============================================================
-// Workers Tab
-// ============================================================
-class _WorkerPage extends StatelessWidget {
-  const _WorkerPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return const WorkerMarketplaceScreen();
-  }
-}
-
-// ============================================================
-// Jobs Tab
-// ============================================================
-class _JobsPage extends StatelessWidget {
-  const _JobsPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return const JobsScreen();
-  }
-}
-
-// ============================================================
-// My Profile Tab — real data dikhao
-// ============================================================
-class _StaffPage extends StatelessWidget {
-  final _UserProfile profile;
-  const _StaffPage({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        title: const Text('My Profile',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Logout?'),
-                  content: const Text('Kya aap logout karna chahte hain?'),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Logout',
-                            style: TextStyle(color: Colors.red))),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                await FirebaseAuth.instance.signOut();
-              }
-            },
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Profile card — real data
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
+  Widget _homeTab() {
+    return CustomScrollView(slivers: [
+      SliverAppBar(
+        expandedHeight: 150, pinned: true, backgroundColor: const Color(0xFF1565C0),
+        flexibleSpace: FlexibleSpaceBar(
+          background: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
                 colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(18),
             ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  child: Text(
-                    profile.initial,
-                    style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        profile.name,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold),
-                      ),
-                      if (profile.skill.isNotEmpty)
-                        Text(
-                          profile.skill,
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 14),
-                        ),
-                      if (profile.phone.isNotEmpty)
-                        Text(
-                          '📞 +91 ${profile.phone}',
-                          style: const TextStyle(
-                              color: Colors.white60, fontSize: 12),
-                        ),
-                      if (profile.city.isNotEmpty)
-                        Text(
-                          '📍 ${profile.city}',
-                          style: const TextStyle(
-                              color: Colors.white60, fontSize: 12),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            child: SafeArea(child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
+                Text(_name.isNotEmpty ? 'Namaste, $_name!' : 'Namaste!',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 4),
+                const Text('KaamDhanda', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text('Rozgaar Ka Sahi Platform', style: TextStyle(color: Colors.white60, fontSize: 12)),
+              ]),
+            )),
           ),
-          const SizedBox(height: 20),
+        ),
+        actions: [
+          if (_userType != 'guest')
+            IconButton(icon: const Icon(Icons.logout, color: Colors.white), onPressed: _logout)
+          else
+            TextButton(
+              onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+              child: const Text('Login', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+        ],
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.all(16),
+        sliver: SliverList(delegate: SliverChildListDelegate([
+          if (_userType != 'guest') ...[_roleCard(), const SizedBox(height: 16)],
+          const Text('Quick Actions', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+          const SizedBox(height: 10), _quickActions(), const SizedBox(height: 20),
+          const Text('Latest Jobs', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+          const SizedBox(height: 10), _latestJobs(), const SizedBox(height: 20),
+          _statsCard(), const SizedBox(height: 24),
+        ])),
+      ),
+    ]);
+  }
 
-          // Menu items
-          ..._buildMenuItems(context).map((item) {
-            final (icon, label, onTap) = item;
+  Widget _roleCard() {
+    final color = _userType == 'gurkul' ? Colors.purple
+        : _userType == 'field_staff' ? const Color(0xFF1565C0)
+        : Colors.green;
+    final label = _userType == 'gurkul' ? 'Gurkul Sathi'
+        : _userType == 'field_staff' ? 'Field Staff'
+        : 'Worker';
+    return GestureDetector(
+      onTap: () {
+        if (_userType == 'gurkul') {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => GrameenSathiScreen(userId: _docId)));
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [color, color.withOpacity(0.8)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Row(children: [
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.white.withOpacity(0.2),
+            child: Text(_name.isNotEmpty ? _name[0].toUpperCase() : 'U',
+              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_name.isNotEmpty ? _name : 'My Profile',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(label, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12)),
+            if (_phone.isNotEmpty)
+              Text('+91 $_phone', style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11)),
+          ])),
+          const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+        ]),
+      ),
+    );
+  }
+
+  Widget _quickActions() {
+    final actions = [
+      {'icon': Icons.work, 'label': 'Jobs', 'color': const Color(0xFF1565C0), 'tab': 1},
+      {'icon': Icons.people, 'label': 'Workers', 'color': Colors.green, 'tab': 2},
+      {'icon': Icons.location_on, 'label': 'Nearby', 'color': Colors.orange, 'tab': 3},
+      {'icon': Icons.person, 'label': 'Profile', 'color': Colors.purple, 'tab': 4},
+    ];
+    return Row(children: actions.map((a) => Expanded(child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedIndex = a['tab'] as int),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: (a['color'] as Color).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: (a['color'] as Color).withOpacity(0.2)),
+          ),
+          child: Column(children: [
+            Icon(a['icon'] as IconData, color: a['color'] as Color, size: 26),
+            const SizedBox(height: 6),
+            Text(a['label'] as String, style: TextStyle(color: a['color'] as Color, fontSize: 11, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
+    ))).toList());
+  }
+
+  Widget _latestJobs() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('jobs')
+          .where('status', isEqualTo: 'active')
+          .orderBy('postedAt', descending: true)
+          .limit(3).snapshots(),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF1565C0)));
+        }
+        final docs = snap.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            child: const Center(child: Text('No jobs yet — check back soon!')),
+          );
+        }
+        return Column(children: [
+          ...docs.map((doc) {
+            final d = doc.data() as Map<String, dynamic>;
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1))
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)],
               ),
-              child: ListTile(
-                leading: Text(icon, style: const TextStyle(fontSize: 22)),
-                title: Text(label,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                trailing:
-                    const Icon(Icons.chevron_right, color: Colors.black38),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  onTap();
-                },
-              ),
+              child: Row(children: [
+                CircleAvatar(radius: 18, backgroundColor: const Color(0xFF1565C0).withOpacity(0.1),
+                  child: const Icon(Icons.work, color: Color(0xFF1565C0), size: 16)),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(d['title'] ?? 'Job', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text('Rs.${d['salary'] ?? 'Negotiable'} • ${d['location'] ?? 'India'}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                ])),
+                ElevatedButton(
+                  onPressed: () => setState(() => _selectedIndex = 1),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Apply', style: TextStyle(fontSize: 11)),
+                ),
+              ]),
             );
           }),
-        ],
-      ),
+          TextButton(
+            onPressed: () => setState(() => _selectedIndex = 1),
+            child: const Text('Sab Jobs Dekhen', style: TextStyle(color: Color(0xFF1565C0), fontWeight: FontWeight.bold)),
+          ),
+        ]);
+      },
     );
   }
 
-  List<(String, String, VoidCallback)> _buildMenuItems(BuildContext ctx) => [
-        (
-          '📄',
-          'My CV / Profile Share',
-          () => Navigator.push(
-              ctx,
-              MaterialPageRoute(
-                  builder: (_) => WorkerCvScreen(workerId: profile.uid)))
-        ),
-        (
-          '🔔',
-          'Job Alert Settings',
-          () => Navigator.push(
-              ctx,
-              MaterialPageRoute(
-                  builder: (_) => JobAlertSubscriptionScreen(
-                      workerId: profile.uid,
-                      workerName: profile.name,
-                      workerPhone: profile.phone)))
-        ),
-        (
-          '✅',
-          'Daily Check-in',
-          () => Navigator.push(ctx,
-              MaterialPageRoute(builder: (_) => const DailyCheckinScreen()))
-        ),
-        (
-          '📊',
-          'Monthly Target',
-          () => Navigator.push(ctx,
-              MaterialPageRoute(builder: (_) => const MonthlyTargetScreen()))
-        ),
-        (
-          '👥',
-          'My Candidates',
-          () => Navigator.push(ctx,
-              MaterialPageRoute(builder: (_) => const CandidateStatusScreen()))
-        ),
-        (
-          '🌾',
-          'Grameen Sathi',
-          () => Navigator.push(ctx,
-              MaterialPageRoute(builder: (_) => const GrameenSathiScreen()))
-        ),
-        (
-          '🏢',
-          'My Job Posts (Employer)',
-          () => Navigator.push(
-              ctx,
-              MaterialPageRoute(
-                  builder: (_) => EmployerJobManagementScreen(
-                      employerId: profile.uid, employerName: profile.name)))
-        ),
-        (
-          '🌟',
-          'Testimonials',
-          () => Navigator.push(ctx,
-              MaterialPageRoute(builder: (_) => const TestimonialsScreen()))
-        ),
-      ];
+  Widget _statsCard() => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF1976D2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+      _stat('15K+', 'Jobs'), _vdiv(), _stat('8K+', 'Workers'), _vdiv(), _stat('500+', 'Companies'), _vdiv(), _stat('FREE', 'Always'),
+    ]),
+  );
+
+  Widget _stat(String v, String l) => Column(children: [
+    Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+    Text(l, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+  ]);
+
+  Widget _vdiv() => Container(height: 28, width: 1, color: Colors.white30);
+
+  Widget _profileTab() {
+    if (_userType == 'guest') {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF0F4F8),
+        body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.person_outline, size: 80, color: Color(0xFF90CAF9)),
+          const SizedBox(height: 16),
+          const Text('Login karein profile dekhne ke liye', style: TextStyle(fontSize: 15, color: Color(0xFF1565C0))),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
+            child: const Text('Login / Register'),
+          ),
+        ])),
+      );
+    }
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F4F8),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1565C0),
+        title: const Text('Profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        actions: [IconButton(icon: const Icon(Icons.logout, color: Colors.white), onPressed: _logout)],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF1565C0), Color(0xFF1976D2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(children: [
+              CircleAvatar(
+                radius: 34,
+                backgroundColor: Colors.white.withOpacity(0.2),
+                child: Text(_name.isNotEmpty ? _name[0].toUpperCase() : 'U',
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 10),
+              Text(_name.isNotEmpty ? _name : 'User', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              if (_phone.isNotEmpty) Text('+91 $_phone', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                child: Text(
+                  _userType == 'gurkul' ? 'Gurkul Sathi' : _userType == 'field_staff' ? 'Field Staff' : 'Worker',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 16),
+          if (_userType == 'gurkul') ...[
+            ElevatedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GrameenSathiScreen(userId: _docId))),
+              icon: const Icon(Icons.dashboard), label: const Text('Gurkul Dashboard'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple, foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (_profileData != null) Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white, borderRadius: BorderRadius.circular(12),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)],
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('My Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 12),
+              ..._profileData!.entries
+                .where((e) => !['createdAt','updatedAt','fcmToken'].contains(e.key))
+                .take(10)
+                .map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(children: [
+                    SizedBox(width: 100, child: Text('${e.key}:', style: TextStyle(color: Colors.grey[600], fontSize: 12))),
+                    Expanded(child: Text('${e.value}', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13))),
+                  ]),
+                )),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 }
