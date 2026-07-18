@@ -15,6 +15,7 @@ import 'daily_checkin_screen.dart';
 import 'monthly_target_screen.dart';
 import 'candidate_status_screen.dart';
 import 'worker_cv_screen.dart';
+import 'worker_profile_screen.dart';
 
 // Widgets
 import '../widgets/live_stats_widget.dart';
@@ -68,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      // Not logged in — use anonymous guest profile
       if (mounted) {
         setState(() {
           _profile = const _UserProfile(
@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _HomePage(profile: profile),
           const _WorkerPage(),
-          _JobsPage(profile: profile),
+          const _JobsPage(),
           _StaffPage(profile: profile),
         ],
       ),
@@ -274,12 +274,16 @@ class _HomePage extends StatelessWidget {
             const LiveStatsWidget(),
             const SizedBox(height: 20),
 
-            // Available Now strip
+            // Available Today strip
             AvailableTodaySection(
-              onSeeAll: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const AvailableNowScreen())),
-              onHire: (id, data) => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => WorkerProfileScreen(workerId: id))),
+              onSeeAll: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const WorkerMarketplaceScreen())),
+              onHire: (id, data) => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => WorkerProfileScreen(workerId: id))),
             ),
 
             // Quick Actions Grid
@@ -288,31 +292,19 @@ class _HomePage extends StatelessWidget {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             _QuickActionsGrid(profile: profile),
-
-            // Job Alert Banner
-            const SizedBox(height: 16),
-            JobAlertBannerCard(
-              workerId: profile.uid,
-              workerName: profile.name,
-              workerPhone: profile.phone,
-            ),
-            const SizedBox(height: 16),
-
-            // Testimonials
-            const Text('Success Stories 🌟',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TestimonialsCarousel(),
             const SizedBox(height: 30),
           ],
         ),
       ),
       bottomNavigationBar: QuickCtaBar(
-        onWorkerRegister: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => WorkerCvScreen(workerId: profile.uid))),
-        onJobSearch: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => JobsScreen(currentUserId: profile.uid))),
-        onHireWorker: () => Navigator.push(context,
+        onWorkerRegister: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => WorkerCvScreen(workerId: profile.uid))),
+        onJobSearch: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const JobsScreen())),
+        onHireWorker: () => Navigator.push(
+            context,
             MaterialPageRoute(builder: (_) => const WorkerMarketplaceScreen())),
       ),
     );
@@ -329,20 +321,47 @@ class _QuickActionsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      ('🏪', 'Marketplace', () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const WorkerMarketplaceScreen()))),
-      ('📍', 'Nearby', () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const NearbyWorkersScreen()))),
-      ('💼', 'My Jobs', () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => JobsScreen(currentUserId: profile.uid)))),
-      ('🌾', 'Grameen Sathi', () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => GrameenSathiScreen(
-              staffId: profile.uid, staffName: profile.name)))),
-      ('🏢', 'Post Job', () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => EmployerJobManagementScreen(
-              employerId: profile.uid, employerName: profile.name)))),
-      ('📄', 'My CV', () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => WorkerCvScreen(workerId: profile.uid)))),
+      (
+        '🏪',
+        'Marketplace',
+        () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const WorkerMarketplaceScreen()))
+      ),
+      (
+        '📍',
+        'Nearby',
+        () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const NearbyWorkersScreen()))
+      ),
+      (
+        '💼',
+        'My Jobs',
+        () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const JobsScreen()))
+      ),
+      (
+        '🌾',
+        'Grameen Sathi',
+        () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const GrameenSathiScreen()))
+      ),
+      (
+        '🏢',
+        'Post Job',
+        () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => EmployerJobManagementScreen(
+                    employerId: profile.uid, employerName: profile.name)))
+      ),
+      (
+        '📄',
+        'My CV',
+        () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => WorkerCvScreen(workerId: profile.uid)))
+      ),
     ];
 
     return GridView.count(
@@ -404,12 +423,11 @@ class _WorkerPage extends StatelessWidget {
 // Jobs Tab
 // ============================================================
 class _JobsPage extends StatelessWidget {
-  final _UserProfile profile;
-  const _JobsPage({required this.profile});
+  const _JobsPage();
 
   @override
   Widget build(BuildContext context) {
-    return JobsScreen(currentUserId: profile.uid);
+    return const JobsScreen();
   }
 }
 
@@ -554,64 +572,63 @@ class _StaffPage extends StatelessWidget {
   }
 
   List<(String, String, VoidCallback)> _buildMenuItems(BuildContext ctx) => [
-        ('🔄', 'Availability Update',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) => AvailabilityScreen(
-                        workerId: profile.uid,
-                        workerName: profile.name)))),
-        ('📄', 'My CV / Profile Share',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) => WorkerCvScreen(workerId: profile.uid)))),
-        ('🔔', 'Job Alert Settings',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) => JobAlertSubscriptionScreen(
-                        workerId: profile.uid,
-                        workerName: profile.name,
-                        workerPhone: profile.phone)))),
-        ('✅', 'Daily Check-in',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) => DailyCheckinScreen(
-                        userId: profile.uid,
-                        userName: profile.name,
-                        userType: 'worker')))),
-        ('📊', 'Monthly Target',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) => MonthlyTargetScreen(
-                        userId: profile.uid, userType: 'worker')))),
-        ('👥', 'My Candidates',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        CandidateStatusScreen(staffId: profile.uid)))),
-        ('🌾', 'Grameen Sathi',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) => GrameenSathiScreen(
-                        staffId: profile.uid, staffName: profile.name)))),
-        ('🏢', 'My Job Posts (Employer)',
-            () => Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                    builder: (_) => EmployerJobManagementScreen(
-                        employerId: profile.uid,
-                        employerName: profile.name)))),
-        ('🌟', 'Testimonials',
-            () => Navigator.push(ctx,
-                MaterialPageRoute(builder: (_) => const TestimonialsScreen()))),
-        ('📈', 'Platform Stats',
-            () => Navigator.push(ctx,
-                MaterialPageRoute(builder: (_) => const PlatformStatsScreen()))),
+        (
+          '📄',
+          'My CV / Profile Share',
+          () => Navigator.push(
+              ctx,
+              MaterialPageRoute(
+                  builder: (_) => WorkerCvScreen(workerId: profile.uid)))
+        ),
+        (
+          '🔔',
+          'Job Alert Settings',
+          () => Navigator.push(
+              ctx,
+              MaterialPageRoute(
+                  builder: (_) => JobAlertSubscriptionScreen(
+                      workerId: profile.uid,
+                      workerName: profile.name,
+                      workerPhone: profile.phone)))
+        ),
+        (
+          '✅',
+          'Daily Check-in',
+          () => Navigator.push(ctx,
+              MaterialPageRoute(builder: (_) => const DailyCheckinScreen()))
+        ),
+        (
+          '📊',
+          'Monthly Target',
+          () => Navigator.push(ctx,
+              MaterialPageRoute(builder: (_) => const MonthlyTargetScreen()))
+        ),
+        (
+          '👥',
+          'My Candidates',
+          () => Navigator.push(ctx,
+              MaterialPageRoute(builder: (_) => const CandidateStatusScreen()))
+        ),
+        (
+          '🌾',
+          'Grameen Sathi',
+          () => Navigator.push(ctx,
+              MaterialPageRoute(builder: (_) => const GrameenSathiScreen()))
+        ),
+        (
+          '🏢',
+          'My Job Posts (Employer)',
+          () => Navigator.push(
+              ctx,
+              MaterialPageRoute(
+                  builder: (_) => EmployerJobManagementScreen(
+                      employerId: profile.uid, employerName: profile.name)))
+        ),
+        (
+          '🌟',
+          'Testimonials',
+          () => Navigator.push(ctx,
+              MaterialPageRoute(builder: (_) => const TestimonialsScreen()))
+        ),
       ];
 }
