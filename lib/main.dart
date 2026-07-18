@@ -9,13 +9,15 @@ String? _firebaseError;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Safe Firebase init — if it fails, show error on screen (don't crash silently)
   try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    }
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
-    _firebaseError = e.toString();
+    final msg = e.toString();
+    // duplicate-app = Firebase already initialized (native side) — this is FINE, ignore it
+    if (!msg.contains('duplicate-app') && !msg.contains('already exists')) {
+      _firebaseError = msg;
+    }
+    // duplicate-app error ko silently ignore karo — app normal chalega
   }
   runApp(const KaamDhandaApp());
 }
@@ -25,7 +27,6 @@ class KaamDhandaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // If Firebase failed, show clear error message on screen
     if (_firebaseError != null) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -39,17 +40,6 @@ class KaamDhandaApp extends StatelessWidget {
               const Text('Firebase Error', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
               const SizedBox(height: 12),
               Text(_firebaseError!, style: const TextStyle(fontSize: 13, color: Colors.black87), textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () async {
-                  // Try re-init
-                  try {
-                    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-                    _firebaseError = null;
-                  } catch (e) { _firebaseError = e.toString(); }
-                },
-                child: const Text('Retry'),
-              ),
             ]),
           )),
         ),
@@ -71,7 +61,6 @@ class KaamDhandaApp extends StatelessWidget {
           foregroundColor: Colors.white,
           elevation: 0,
         ),
-        fontFamily: null,
       ),
       home: const SplashGate(),
       routes: {
@@ -123,8 +112,7 @@ class _SplashGateState extends State<SplashGate> {
           );
         }
       }
-    } catch (e) {
-      // SharedPrefs failed — just go to login
+    } catch (_) {
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -151,7 +139,7 @@ class _SplashGateState extends State<SplashGate> {
               child: const Icon(Icons.work_rounded, size: 56, color: Color(0xFF1565C0)),
             ),
             const SizedBox(height: 24),
-            const Text('KaamDhanda', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            const Text('KaamDhanda', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             const Text('Rozgaar Ka Sahi Platform', style: TextStyle(color: Colors.white70, fontSize: 16)),
             const SizedBox(height: 48),
