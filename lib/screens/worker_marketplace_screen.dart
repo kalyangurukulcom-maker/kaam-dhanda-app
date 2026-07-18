@@ -3,303 +3,433 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WorkerMarketplaceScreen extends StatefulWidget {
-  const WorkerMarketplaceScreen({super.key});
+  const WorkerMarketplaceScreen({Key? key}) : super(key: key);
   @override
   State<WorkerMarketplaceScreen> createState() => _WorkerMarketplaceScreenState();
 }
 
 class _WorkerMarketplaceScreenState extends State<WorkerMarketplaceScreen> {
   final _search = TextEditingController();
-  String _searchText = '';
-  String _catFilter = 'सभी';
-  bool _availableOnly = false;
+  String _cat = 'सभी';
+  bool _availOnly = false;
 
-  // Website ke hire.html se match karte categories
-  static const _cats = ['सभी','मजदूर','ड्राइवर','इलेक्ट्रीशियन','प्लम्बर','सिक्योरिटी','कारपेंटर','पेंटर','मिस्त्री','कुक','डिलीवरी','फैक्ट्री','अन्य'];
-  static const _blue = Color(0xFF1565C0);
+  static const _kBlue = Color(0xFF1565C0);
+  static const _kGreen = Color(0xFF25D366);
 
-  Stream<QuerySnapshot> get _stream => FirebaseFirestore.instance
-      .collection('workers')
-      .orderBy('createdAt', descending: true)
-      .snapshots();
+  static const _cats = <Map<String, String>>[
+    {'l': 'सभी', 'e': '📂'},
+    {'l': 'मजदूर', 'e': '🏗️'},
+    {'l': 'ड्राइवर', 'e': '🚗'},
+    {'l': 'इलेक्ट्रीशियन', 'e': '⚡'},
+    {'l': 'प्लम्बर', 'e': '🔧'},
+    {'l': 'सिक्योरिटी', 'e': '🛡️'},
+    {'l': 'कारपेंटर', 'e': '🪵'},
+    {'l': 'पेंटर', 'e': '🎨'},
+    {'l': 'मिस्त्री', 'e': '🔨'},
+    {'l': 'कुक', 'e': '🍽️'},
+    {'l': 'डिलीवरी', 'e': '📦'},
+    {'l': 'फैक्ट्री', 'e': '🏭'},
+    {'l': 'अन्य', 'e': '✨'},
+  ];
 
-  // Website jobType mein emojis hoti hain like "🚗 ड्राइवर (Driver)" — smart match karo
-  bool _matchCategory(String storedCat, String filter) {
+  bool _matchCat(String stored, String filter) {
     if (filter == 'सभी') return true;
-    final c = storedCat.toLowerCase();
+    final s = stored.toLowerCase();
     final f = filter.toLowerCase();
-    if (c.contains(f)) return true;
-    const catMap = <String, List<String>>{
-      'मजदूर': ['mazdoor','labour','labor','helper','लेबर','मजदूर','bar bending','rod'],
-      'ड्राइवर': ['driver','ड्राइवर','cab','truck','driving'],
-      'इलेक्ट्रीशियन': ['electrician','electric','इलेक्ट्रीशियन','ac mechanic','ac tech'],
-      'प्लम्बर': ['plumber','प्लम्बर','plumbing','pipe'],
-      'सिक्योरिटी': ['security','guard','सिक्योरिटी','watchman','चौकीदार'],
-      'कारपेंटर': ['carpenter','कारपेंटर','wood','furniture'],
-      'पेंटर': ['painter','पेंटर','paint'],
-      'मिस्त्री': ['mason','मिस्त्री','rajmistry','tiles','bricklayer'],
-      'कुक': ['cook','कुक','chef','kitchen','restaurant','रसोइया'],
-      'डिलीवरी': ['delivery','डिलीवरी','courier','bike'],
-      'फैक्ट्री': ['factory','फैक्ट्री','packing','manufacturing','welder','tailor'],
-      'अन्य': ['other','अन्य','barber','नाई','darzi','embroidery'],
+    if (s.contains(f)) return true;
+    const m = <String, List<String>>{
+      'ड्राइवर': ['driver','cab','truck','driving'],
+      'इलेक्ट्रीशियन': ['electric','electrician','wiring'],
+      'प्लम्बर': ['plumber','plumbing','pipe'],
+      'सिक्योरिटी': ['security','guard','watchman'],
+      'कारपेंटर': ['carpenter','wood','furniture'],
+      'पेंटर': ['painter','paint'],
+      'मजदूर': ['mazdoor','labour','labor','helper'],
+      'मिस्त्री': ['mistri','mason','राजमिस्त्री'],
+      'कुक': ['cook','chef','kitchen','रसोइया'],
+      'डिलीवरी': ['delivery','courier','logistics'],
+      'फैक्ट्री': ['factory','manufacturing','production','operator','packing'],
     };
-    final keys = catMap[filter] ?? [];
-    return keys.any((k) => c.contains(k));
+    return (m[filter] ?? []).any((k) => s.contains(k));
   }
 
-  List<QueryDocumentSnapshot> _filter(List<QueryDocumentSnapshot> docs) {
-    return docs.where((d) {
-      final data = d.data() as Map<String, dynamic>;
-      final name = (data['name'] ?? '').toString().toLowerCase();
-      // skills ya jobType (website worker.html jobType save karta hai)
-      final skills = (data['skills'] ?? data['skill'] ?? data['jobType'] ?? '').toString().toLowerCase();
-      // district (website worker.html district save karta hai), city ya location bhi
-      final city = (data['district'] ?? data['city'] ?? data['location'] ?? '').toString().toLowerCase();
-      final cat = (data['category'] ?? data['jobType'] ?? '').toString();
-      final avail = data['available'] == true || data['available'] == 'true' || data['availability'] == 'available';
-
-      if (_searchText.isNotEmpty && !name.contains(_searchText) && !skills.contains(_searchText) && !city.contains(_searchText)) return false;
-      if (!_matchCategory(cat, _catFilter)) return false;
-      if (_availableOnly && !avail) return false;
-      return true;
-    }).toList();
+  String _icon(String cat) {
+    final c = cat.toLowerCase();
+    if (c.contains('driver') || c.contains('ड्राइवर') || c.contains('cab')) return '🚗';
+    if (c.contains('electric') || c.contains('इलेक्ट्रीशियन')) return '⚡';
+    if (c.contains('plumb') || c.contains('प्लम्बर')) return '🔧';
+    if (c.contains('security') || c.contains('guard')) return '🛡️';
+    if (c.contains('carpenter') || c.contains('कारपेंटर')) return '🪵';
+    if (c.contains('painter') || c.contains('पेंटर')) return '🎨';
+    if (c.contains('mason') || c.contains('mistri') || c.contains('मिस्त्री')) return '🔨';
+    if (c.contains('cook') || c.contains('chef') || c.contains('kitchen')) return '🍽️';
+    if (c.contains('delivery') || c.contains('डिलीवरी')) return '📦';
+    if (c.contains('factory') || c.contains('फैक्ट्री')) return '🏭';
+    if (c.contains('mazdoor') || c.contains('मजदूर') || c.contains('labour')) return '🏗️';
+    return '👷';
   }
 
-  void _whatsapp(Map d, String name) async {
-    // whatsapp field pehle check karo, phir phone
-    final waNum = (d['whatsapp'] ?? d['phone'] ?? '').toString();
-    if (waNum.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contact number nahi hai')));
-      return;
-    }
-    final msg = Uri.encodeComponent('Namaste $name ji! Mujhe aapki services chahiye. KaamDhanda.in se contact kar raha hoon.');
-    final cleanNum = waNum.replaceAll(RegExp(r'[^0-9]'), '');
-    final url = 'https://wa.me/91$cleanNum?text=$msg';
-    if (await canLaunchUrl(Uri.parse(url))) launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  Future<void> _wa(Map<String, dynamic> d, String name) async {
+    final raw = (d['whatsapp'] ?? d['phone'] ?? '').toString();
+    final ph = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (ph.isEmpty) return;
+    final cat = (d['jobType'] ?? d['category'] ?? 'काम').toString();
+    final msg = Uri.encodeComponent('नमस्ते $name जी, मुझे $cat के लिए कारीगर चाहिए। काम धंधा ऐप से।');
+    final url = Uri.parse('https://wa.me/91$ph?text=$msg');
+    if (await canLaunchUrl(url)) launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
-  void _call(String phone) async {
-    final cleanNum = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    final url = 'tel:$cleanNum';
-    if (await canLaunchUrl(Uri.parse(url))) launchUrl(Uri.parse(url));
+  Future<void> _call(Map<String, dynamic> d) async {
+    final ph = (d['phone'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '');
+    if (ph.isEmpty) return;
+    if (await canLaunchUrl(Uri.parse('tel:$ph'))) launchUrl(Uri.parse('tel:$ph'));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Column(children: [
-        Container(
-          color: _blue,
-          child: SafeArea(
-            bottom: false,
-            child: Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-                child: Row(children: [
-                  const Text('मजदूर ढूंढें', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const Spacer(),
-                  // Available Today toggle
-                  GestureDetector(
-                    onTap: () => setState(() => _availableOnly = !_availableOnly),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: _availableOnly ? Colors.green : Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(_availableOnly ? Icons.check_circle : Icons.radio_button_unchecked, color: Colors.white, size: 14),
-                        const SizedBox(width: 4),
-                        const Text('Available आज', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                      ]),
-                    ),
-                  ),
-                ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: TextField(
-                  controller: _search,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Naam, skill ya city se dhundho...',
-                    hintStyle: const TextStyle(color: Colors.white60),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                    suffixIcon: _searchText.isNotEmpty ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.white70),
-                      onPressed: () { _search.clear(); setState(() => _searchText = ''); }) : null,
-                    filled: true, fillColor: Colors.white.withOpacity(0.15),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  onChanged: (v) => setState(() => _searchText = v.toLowerCase()),
-                ),
-              ),
-            ]),
-          ),
+      backgroundColor: const Color(0xFFF0F4FF),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: _kBlue,
+        foregroundColor: Colors.white,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('👷 कारीगर ढूंढें',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text('झारखंड के वेरिफाइड कामगार',
+                style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.8))),
+          ],
         ),
-        Container(
-          color: Colors.white, height: 46,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            itemCount: _cats.length,
-            itemBuilder: (_, i) => Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: FilterChip(
-                label: Text(_cats[i], style: TextStyle(
-                  fontSize: 12,
-                  color: _catFilter == _cats[i] ? Colors.white : Colors.black87,
-                  fontWeight: _catFilter == _cats[i] ? FontWeight.bold : FontWeight.normal,
-                )),
-                selected: _catFilter == _cats[i],
-                onSelected: (_) => setState(() => _catFilter = _cats[i]),
-                selectedColor: _blue, backgroundColor: Colors.grey[200],
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+        actions: [
+          GestureDetector(
+            onTap: () => setState(() => _availOnly = !_availOnly),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 10, top: 10, bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: _availOnly ? _kGreen : Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _availOnly ? _kGreen : Colors.white38),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 7, height: 7,
+                  decoration: BoxDecoration(
+                    color: _availOnly ? Colors.white : Colors.white60,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text('✅ Available',
+                    style: TextStyle(fontSize: 11, color: _availOnly ? Colors.white : Colors.white70, fontWeight: FontWeight.bold)),
+              ]),
+            ),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              style: const TextStyle(color: Colors.black87, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: '🔍 नाम, काम या जिला खोजें...',
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
+                suffixIcon: _search.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey, size: 18),
+                        onPressed: () { _search.clear(); setState(() {}); })
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
             ),
           ),
         ),
-        const Divider(height: 1),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _stream,
-            builder: (ctx, snap) {
-              if (snap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: _blue));
-              if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
-              final docs = _filter(snap.data?.docs ?? []);
-              if (docs.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
-                const SizedBox(height: 12),
-                Text('Koi worker nahi mila', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-                const SizedBox(height: 4),
-                Text('Filter change karke try karein', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-                if (_searchText.isNotEmpty || _catFilter != 'सभी' || _availableOnly) ...[
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () { _search.clear(); setState(() { _searchText = ''; _catFilter = 'सभी'; _availableOnly = false; }); },
-                    child: const Text('Filter reset karo')),
-                ],
-              ]));
-              return ListView.builder(
-                padding: const EdgeInsets.all(12), itemCount: docs.length,
-                itemBuilder: (_, i) {
-                  final d = docs[i].data() as Map<String, dynamic>;
-                  final name = (d['name'] ?? 'Worker').toString();
-                  final phone = (d['phone'] ?? '').toString();
-                  final waNum = (d['whatsapp'] ?? phone).toString();
-                  final skills = (d['skills'] ?? d['skill'] ?? '').toString();
-                  // District prefer karo (website worker.html mein district save hota hai)
-                  final city = (d['district'] ?? d['city'] ?? d['location'] ?? '').toString();
-                  final cat = (d['category'] ?? d['jobType'] ?? '').toString();
-                  // Category display ke liye emojis strip karo
-                  final catDisplay = cat.replaceAll(RegExp(r'[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]', unicode: true), '').trim();
-                  final exp = (d['experience'] ?? '').toString();
-                  final rating = ((d['rating'] ?? 0) as num).toDouble();
-                  final ratingCount = (d['ratingCount'] ?? 0);
-                  final avail = d['available'] == true || d['available'] == 'true' || d['availability'] == 'available';
-                  final isNew = d['createdAt'] != null &&
-                      DateTime.now().difference((d['createdAt'] as Timestamp).toDate()).inDays <= 7;
-                  final initials = name.isNotEmpty ? name[0].toUpperCase() : 'W';
-
-                  return Card(
-                    elevation: 2, margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        CircleAvatar(radius: 28, backgroundColor: _blue,
-                          child: Text(initials, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Expanded(child: Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: avail ? Colors.green[50] : Colors.grey[100],
-                                border: Border.all(color: avail ? Colors.green : Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(avail ? '✅ Available' : 'Busy',
-                                style: TextStyle(color: avail ? Colors.green[700] : Colors.grey[600], fontSize: 11, fontWeight: FontWeight.bold)),
-                            ),
-                          ]),
-                          const SizedBox(height: 5),
-                          Row(children: [
-                            if (catDisplay.isNotEmpty && catDisplay.length > 1) Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: _blue.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                              child: Text(catDisplay.length > 22 ? catDisplay.substring(0, 22) : catDisplay,
-                                style: TextStyle(color: _blue, fontSize: 11, fontWeight: FontWeight.bold)),
-                            ),
-                            if (isNew) ...[
-                              const SizedBox(width: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.orange[50], border: Border.all(color: Colors.orange), borderRadius: BorderRadius.circular(4)),
-                                child: const Text('NEW', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ]),
-                        ])),
-                      ]),
-                      const SizedBox(height: 10),
-                      if (skills.isNotEmpty) Row(children: [
-                        const Icon(Icons.build, size: 14, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Expanded(child: Text(skills, style: TextStyle(color: Colors.grey[700], fontSize: 13))),
-                      ]),
-                      if (city.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Row(children: [
-                          const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text(city, style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-                        ]),
-                      ],
-                      if (exp.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Row(children: [
-                          const Icon(Icons.work_history, size: 14, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text('अनुभव: $exp', style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-                        ]),
-                      ],
-                      if (rating > 0) ...[
-                        const SizedBox(height: 6),
-                        Row(children: [
-                          ...List.generate(5, (j) => Icon(j < rating.round() ? Icons.star : Icons.star_border, size: 16, color: Colors.amber)),
-                          const SizedBox(width: 4),
-                          Text('${rating.toStringAsFixed(1)} ($ratingCount)', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                        ]),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        if (phone.isNotEmpty) ...[
-                          Expanded(child: OutlinedButton.icon(
-                            icon: const Icon(Icons.phone, size: 16),
-                            label: const Text('Call करें', style: TextStyle(fontSize: 13)),
-                            onPressed: () => _call(phone),
-                            style: OutlinedButton.styleFrom(foregroundColor: _blue, side: BorderSide(color: _blue), padding: const EdgeInsets.symmetric(vertical: 8)),
-                          )),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(child: ElevatedButton.icon(
-                          icon: const Icon(Icons.message, size: 16),
-                          label: const Text('WhatsApp Hire', style: TextStyle(fontSize: 13)),
-                          onPressed: waNum.isNotEmpty ? () => _whatsapp(d, name) : null,
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 8)),
-                        )),
-                      ]),
-                    ])),
+      ),
+      body: Column(
+        children: [
+          // Category chips
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: SizedBox(
+              height: 38,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _cats.length,
+                itemBuilder: (ctx, i) {
+                  final sel = _cat == _cats[i]['l'];
+                  return GestureDetector(
+                    onTap: () => setState(() => _cat = _cats[i]['l']!),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: sel ? _kBlue : const Color(0xFFF0F4FF),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: sel
+                            ? [BoxShadow(color: _kBlue.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 2))]
+                            : [],
+                      ),
+                      child: Text(
+                        '${_cats[i]['e']} ${_cats[i]['l']}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: sel ? Colors.white : Colors.black87,
+                          fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
                   );
                 },
-              );
-            },
+              ),
+            ),
           ),
-        ),
-      ]),
+          // Workers
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('workers').snapshots(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: _kBlue));
+                }
+                if (!snap.hasData || snap.data!.docs.isEmpty) {
+                  return _empty('कोई कारीगर नहीं मिला', 'अभी कोई registered नहीं है');
+                }
+
+                final q = _search.text.trim().toLowerCase();
+                final workers = snap.data!.docs.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  if (_availOnly && d['available'] != true) return false;
+                  final cat = (d['jobType'] ?? d['category'] ?? '').toString();
+                  if (!_matchCat(cat, _cat)) return false;
+                  if (q.isNotEmpty) {
+                    final name = (d['name'] ?? '').toString().toLowerCase();
+                    final dist = (d['district'] ?? d['city'] ?? '').toString().toLowerCase();
+                    final jt = (d['jobType'] ?? d['category'] ?? '').toString().toLowerCase();
+                    if (!name.contains(q) && !dist.contains(q) && !jt.contains(q)) return false;
+                  }
+                  return true;
+                }).toList();
+
+                if (workers.isEmpty) {
+                  return _empty('कोई कारीगर नहीं मिला', 'फ़िल्टर बदलकर देखें');
+                }
+
+                return Column(children: [
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Row(children: [
+                      Text('${workers.length} कारीगर मिले',
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                      if (_availOnly) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12)),
+                          child: Text('✅ Available filter ON', style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ]),
+                  ),
+                  Expanded(
+                    child: RefreshIndicator(
+                      color: _kBlue,
+                      onRefresh: () async {},
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+                        itemCount: workers.length,
+                        itemBuilder: (ctx, i) => _workerCard(workers[i]),
+                      ),
+                    ),
+                  ),
+                ]);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
+
+  Widget _workerCard(QueryDocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    final name = (d['name'] ?? 'Unknown').toString();
+    final jobType = (d['jobType'] ?? d['category'] ?? 'कारीगर').toString();
+    // Clean display text (strip emoji prefix)
+    final jobText = jobType.replaceAll(RegExp(r'^[\s\S]*?(?=[\u0900-\u097F])', unicode: true), '').trim();
+    final display = jobText.isNotEmpty ? jobText : jobType;
+    final district = (d['district'] ?? d['city'] ?? d['location'] ?? '').toString();
+    final experience = (d['experience'] ?? '').toString();
+    final available = d['available'] == true;
+    final icon = _icon(jobType);
+    final hasContact = (d['phone'] ?? d['whatsapp'] ?? '').toString().isNotEmpty;
+    final phone = (d['phone'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 2))],
+        border: available ? Border.all(color: Colors.green.withOpacity(0.2), width: 1.5) : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Avatar
+                Stack(children: [
+                  Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(
+                      color: _kBlue.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(child: Text(icon, style: const TextStyle(fontSize: 28))),
+                  ),
+                  if (available)
+                    Positioned(
+                      bottom: 2, right: 2,
+                      child: Container(
+                        width: 14, height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                      ),
+                    ),
+                ]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A2E))),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _kBlue.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          display.length > 20 ? '${display.substring(0, 20)}…' : display,
+                          style: const TextStyle(fontSize: 11, color: _kBlue, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (district.isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Row(children: [
+                          const Icon(Icons.location_on_rounded, size: 13, color: Colors.grey),
+                          const SizedBox(width: 3),
+                          Text(district, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        ]),
+                      ],
+                    ],
+                  ),
+                ),
+                // Availability badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: available ? Colors.green.shade50 : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: available ? Colors.green.shade200 : Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    available ? '✅ उपलब्ध' : '⏳ Busy',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: available ? Colors.green.shade700 : Colors.grey.shade600,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (experience.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(spacing: 8, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(8)),
+                  child: Text('⏱️ $experience अनुभव',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFE65100), fontWeight: FontWeight.w600)),
+                ),
+                if (phone.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(8)),
+                    child: Text('📞 ${phone.length > 10 ? phone.substring(phone.length - 10) : phone}',
+                        style: const TextStyle(fontSize: 12, color: _kBlue, fontWeight: FontWeight.w600)),
+                  ),
+              ]),
+            ],
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: hasContact ? () => _call(d) : null,
+                  icon: const Icon(Icons.call_rounded, size: 16),
+                  label: const Text('Call करें', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _kBlue,
+                    side: const BorderSide(color: _kBlue),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: hasContact ? () => _wa(d, name) : null,
+                  icon: const Text('💬', style: TextStyle(fontSize: 15)),
+                  label: const Text('WhatsApp', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _empty(String t, String s) => Center(
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      const Text('😔', style: TextStyle(fontSize: 48)),
+      const SizedBox(height: 12),
+      Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 4),
+      Text(s, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+    ]),
+  );
 }
