@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 
@@ -29,7 +28,6 @@ class KaamDhandaApp extends StatelessWidget {
           primary: const Color(0xFF1565C0),
         ),
         useMaterial3: true,
-        textTheme: GoogleFonts.hindTextTheme(),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black87,
