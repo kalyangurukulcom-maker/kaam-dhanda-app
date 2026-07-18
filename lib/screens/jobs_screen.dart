@@ -13,24 +13,21 @@ class _JobsScreenState extends State<JobsScreen>
   late TabController _tabController;
   String _selectedCategory = 'सभी';
 
-  static const _kBlue = Color(0xFF1565C0);
-  static const _kGreen = Color(0xFF25D366);
-
-  static const _cats = [
-    'सभी','निर्माण','ड्राइवर','सिक्योरिटी',
-    'दुकान','इलेक्ट्रीशियन','फैक्ट्री','डिलीवरी','होटल','अन्य',
+  static const List<String> _cats = [
+    'सभी', 'निर्माण', 'ड्राइवर', 'सिक्योरिटी',
+    'दुकान', 'इलेक्ट्रीशियन', 'फैक्ट्री', 'डिलीवरी', 'होटल', 'अन्य',
   ];
 
-  static const _catEmoji = {
-    'सभी':'📂','निर्माण':'🏗️','ड्राइवर':'🚗','सिक्योरिटी':'🛡️',
-    'दुकान':'🏪','इलेक्ट्रीशियन':'⚡','फैक्ट्री':'🏭',
-    'डिलीवरी':'🛵','होटल':'🍽️','अन्य':'✨',
+  static const Map<String, String> _emoji = {
+    'सभी': '📂', 'निर्माण': '🏗️', 'ड्राइवर': '🚗',
+    'सिक्योरिटी': '🛡️', 'दुकान': '🏪', 'इलेक्ट्रीशियन': '⚡',
+    'फैक्ट्री': '🏭', 'डिलीवरी': '🛵', 'होटल': '🍽️', 'अन्य': '✨',
   };
 
-  static const _baharCities = [
-    'pune','bengaluru','bangalore','delhi','mumbai','surat',
-    'goa','gurgaon','gurugram','noida','hyderabad','chennai',
-    'kolkata','ahmedabad','puna','dilli',
+  static const List<String> _baharCities = [
+    'pune', 'bengaluru', 'bangalore', 'delhi', 'mumbai', 'surat',
+    'goa', 'gurgaon', 'gurugram', 'noida', 'hyderabad', 'chennai',
+    'kolkata', 'ahmedabad',
   ];
 
   @override
@@ -38,7 +35,7 @@ class _JobsScreenState extends State<JobsScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) setState(() {});
+      if (!_tabController.indexIsChanging && mounted) setState(() {});
     });
   }
 
@@ -62,61 +59,32 @@ class _JobsScreenState extends State<JobsScreen>
 
   bool _matchCat(Map<String, dynamic> d) {
     if (_selectedCategory == 'सभी') return true;
-    final cat = (d['category'] ?? d['type'] ?? d['jobType'] ?? '')
+    final raw = (d['jobType'] ?? d['category'] ?? d['type'] ?? '')
         .toString().toLowerCase();
-    final f = _selectedCategory.toLowerCase();
-    if (cat.contains(f)) return true;
-    const m = <String, List<String>>{
-      'ड्राइवर': ['driver','cab','truck','driving'],
-      'निर्माण': ['construction','building','civil','mason','bar bending'],
-      'सिक्योरिटी': ['security','guard','watchman'],
-      'दुकान': ['shop','retail','sales','dukan'],
-      'इलेक्ट्रीशियन': ['electric','electrician','wiring'],
-      'फैक्ट्री': ['factory','manufacturing','production','operator','packing'],
-      'डिलीवरी': ['delivery','courier','logistics'],
-      'होटल': ['hotel','cook','chef','waiter','restaurant','kitchen','hospitality'],
+    if (raw.contains(_selectedCategory.toLowerCase())) return true;
+    const Map<String, List<String>> kw = {
+      'ड्राइवर': ['driver', 'cab', 'truck', 'driving'],
+      'निर्माण': ['construction', 'building', 'civil', 'mason'],
+      'सिक्योरिटी': ['security', 'guard', 'watchman'],
+      'दुकान': ['shop', 'retail', 'sales'],
+      'इलेक्ट्रीशियन': ['electric', 'electrician', 'wiring'],
+      'फैक्ट्री': ['factory', 'manufacturing', 'production', 'packing'],
+      'डिलीवरी': ['delivery', 'courier', 'logistics'],
+      'होटल': ['hotel', 'cook', 'chef', 'waiter', 'kitchen'],
     };
-    return (m[_selectedCategory] ?? []).any((k) => cat.contains(k));
+    return (kw[_selectedCategory] ?? []).any((k) => raw.contains(k));
   }
 
-  List<String> _perks(Map<String, dynamic> d) {
-    if (d['perks'] is List) return (d['perks'] as List).map((e) => e.toString()).toList();
-    final p = <String>[];
-    if (d['accommodation'] == true) p.add('🏠 रहना मुफ्त');
-    if (d['food'] == true) p.add('🍽️ खाना मुफ्त');
-    if (d['trainTicket'] == true || d['train'] == true) p.add('🚆 ट्रेन टिकट');
-    return p;
-  }
-
-  String _emoji(Map<String, dynamic> d) {
-    final c = (d['category'] ?? d['type'] ?? d['jobType'] ?? '').toString().toLowerCase();
-    if (c.contains('driver') || c.contains('ड्राइवर') || c.contains('cab')) return '🚗';
-    if (c.contains('security') || c.contains('guard')) return '🛡️';
-    if (c.contains('electric') || c.contains('इलेक्ट्रीशियन')) return '⚡';
-    if (c.contains('factory') || c.contains('फैक्ट्री') || c.contains('packing')) return '🏭';
-    if (c.contains('delivery') || c.contains('डिलीवरी')) return '🛵';
-    if (c.contains('hotel') || c.contains('cook') || c.contains('kitchen')) return '🍽️';
-    if (c.contains('construction') || c.contains('निर्माण') || c.contains('mason')) return '🏗️';
-    if (c.contains('shop') || c.contains('दुकान') || c.contains('sales')) return '🏪';
-    return '💼';
-  }
-
-  Future<void> _wa(Map<String, dynamic> d) async {
-    final raw = (d['phone'] ?? d['contactPhone'] ?? d['whatsapp'] ?? '').toString();
-    final ph = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  Future<void> _openWhatsApp(String rawPhone, String jobTitle) async {
+    final ph = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
     if (ph.isEmpty) return;
-    final title = (d['title'] ?? 'नौकरी').toString();
+    final num = (ph.startsWith('91') && ph.length > 10) ? ph : '91' + ph;
     final msg = Uri.encodeComponent(
-        'नमस्ते, मुझे $title के बारे में जानकारी चाहिए। काम धंधा ऐप से।');
-    final url = Uri.parse('https://wa.me/91$ph?text=$msg');
-    if (await canLaunchUrl(url)) launchUrl(url, mode: LaunchMode.externalApplication);
-  }
-
-  Future<void> _call(Map<String, dynamic> d) async {
-    final raw = (d['phone'] ?? d['contactPhone'] ?? '').toString();
-    final ph = raw.replaceAll(RegExp(r'[^0-9]'), '');
-    if (ph.isEmpty) return;
-    if (await canLaunchUrl(Uri.parse('tel:$ph'))) launchUrl(Uri.parse('tel:$ph'));
+        'नमस्ते, मुझे ' + jobTitle + ' की नौकरी में रुचि है। काम धंधा ऐप से।');
+    final uri = Uri.parse('https://wa.me/' + num + '?text=' + msg);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
@@ -124,114 +92,104 @@ class _JobsScreenState extends State<JobsScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: _kBlue,
+        backgroundColor: const Color(0xFF1565C0),
         foregroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('💼 नौकरियाँ',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            Text('लोकल और बाहर — दोनों मिलेंगी',
-                style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.8))),
+        title: const Text('💼 नौकरी ढूंढें',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
+          tabs: const [
+            Tab(text: '🏠 लोकल जॉब'),
+            Tab(text: '✈️ बाहर की जॉब'),
           ],
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(46),
-          child: TabBar(
-            controller: _tabController,
-            indicatorColor: Colors.white,
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white54,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            tabs: const [
-              Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('🏠', style: TextStyle(fontSize: 15)),
-                SizedBox(width: 6),
-                Text('लोकल जॉब'),
-              ])),
-              Tab(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('✈️', style: TextStyle(fontSize: 15)),
-                SizedBox(width: 6),
-                Text('बाहर की जॉब'),
-              ])),
-            ],
-          ),
         ),
       ),
       body: Column(
         children: [
-          // Category chips
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: SizedBox(
-              height: 38,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _cats.length,
-                itemBuilder: (ctx, i) {
-                  final sel = _selectedCategory == _cats[i];
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedCategory = _cats[i]),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: sel ? _kBlue : const Color(0xFFF0F4FF),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: sel
-                            ? [BoxShadow(color: _kBlue.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 2))]
-                            : [],
+          SizedBox(
+            height: 52,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              itemCount: _cats.length,
+              itemBuilder: (ctx, i) {
+                final cat = _cats[i];
+                final active = cat == _selectedCategory;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedCategory = cat),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: active ? const Color(0xFF1565C0) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: active ? const Color(0xFF1565C0) : Colors.grey.shade300,
                       ),
-                      child: Text(
-                        '${_catEmoji[_cats[i]] ?? ''} ${_cats[i]}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: sel ? Colors.white : Colors.black87,
-                          fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                        ),
+                      boxShadow: active ? [BoxShadow(
+                        color: const Color(0xFF1565C0).withOpacity(0.3),
+                        blurRadius: 6, offset: const Offset(0, 2),
+                      )] : [],
+                    ),
+                    child: Text(
+                      (_emoji[cat] ?? '') + ' ' + cat,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: active ? Colors.white : Colors.black87,
+                        fontWeight: active ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
-          // Jobs
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('jobs').snapshots(),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: _kBlue));
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFF1565C0)));
                 }
-                if (!snap.hasData || snap.data!.docs.isEmpty) {
-                  return _empty('कोई नौकरी नहीं मिली', 'नई नौकरियाँ जल्द आएंगी');
+                if (snap.hasError) {
+                  return Center(child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(Icons.error, color: Colors.red, size: 40),
+                      const SizedBox(height: 8),
+                      Text(snap.error.toString(), textAlign: TextAlign.center),
+                    ]),
+                  ));
                 }
-                final docs = snap.data!.docs
-                    .where((doc) {
-                      final d = doc.data() as Map<String, dynamic>;
-                      return _matchTab(d) && _matchCat(d);
-                    })
-                    .toList();
+                final allDocs = snap.data?.docs ?? [];
+                final docs = allDocs.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  return _matchTab(d) && _matchCat(d);
+                }).toList();
                 if (docs.isEmpty) {
-                  return _empty(
-                    '${_isLocal ? "लोकल" : "बाहर की"} नौकरी नहीं मिली',
-                    'दूसरी category चुनें',
-                  );
+                  return Center(child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.work_off, size: 60, color: Colors.grey.shade300),
+                      const SizedBox(height: 12),
+                      Text(
+                        allDocs.isEmpty ? 'अभी कोई नौकरी उपलब्ध नहीं है' : 'इस category में नौकरी नहीं मिली',
+                        style: TextStyle(color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ));
                 }
-                return RefreshIndicator(
-                  color: _kBlue,
-                  onRefresh: () async {},
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                    itemCount: docs.length,
-                    itemBuilder: (ctx, i) => _card(docs[i]),
-                  ),
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
+                  itemCount: docs.length,
+                  itemBuilder: (ctx, i) {
+                    final d = docs[i].data() as Map<String, dynamic>;
+                    return _buildJobCard(d);
+                  },
                 );
               },
             ),
@@ -241,180 +199,87 @@ class _JobsScreenState extends State<JobsScreen>
     );
   }
 
-  Widget _card(QueryDocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    final perks = _perks(d);
+  Widget _buildJobCard(Map<String, dynamic> d) {
+    final title = (d['title'] ?? d['jobTitle'] ?? 'नौकरी').toString();
+    final company = (d['company'] ?? d['employerName'] ?? '').toString();
+    final location = (d['location'] ?? d['district'] ?? d['city'] ?? '').toString();
     final salary = (d['salary'] ?? d['salaryRange'] ?? '').toString();
-    final loc = (d['location'] ?? d['city'] ?? d['district'] ?? '').toString();
-    final vac = (d['vacancies'] ?? d['posts'] ?? d['seats'] ?? '').toString();
-    final isUrgent = d['urgent'] == true || d['isUrgent'] == true;
-    final rawCat = (d['category'] ?? d['type'] ?? d['jobType'] ?? '').toString();
-    final company = (d['company'] ?? d['employer'] ?? '').toString();
-    final em = _emoji(d);
-    final hasContact =
-        (d['phone'] ?? d['contactPhone'] ?? d['whatsapp'] ?? '').toString().isNotEmpty;
-    // Strip emojis for badge text
-    final catText = rawCat.replaceAll(RegExp(r'[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\s]*', unicode: true), '').trim();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 12, offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Job emoji icon
-                Container(
-                  width: 52, height: 52,
-                  decoration: BoxDecoration(
-                    color: _kBlue.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Center(child: Text(em, style: const TextStyle(fontSize: 26))),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        if (isUrgent) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(5)),
-                            child: const Text('🚨 Urgent', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _isLocal ? Colors.blue.shade50 : Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Text(
-                            _isLocal ? '🏠 लोकल' : '✈️ बाहर',
-                            style: TextStyle(
-                              fontSize: 10, fontWeight: FontWeight.bold,
-                              color: _isLocal ? _kBlue : Colors.orange.shade800,
-                            ),
-                          ),
-                        ),
-                      ]),
-                      const SizedBox(height: 5),
-                      Text(
-                        (d['title'] ?? 'नौकरी').toString(),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A2E)),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (company.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(company, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      ],
-                    ],
-                  ),
-                ),
-                if (catText.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _kBlue.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      catText.length > 8 ? '${catText.substring(0, 8)}…' : catText,
-                      style: const TextStyle(fontSize: 10, color: _kBlue, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          // Info badges
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-            child: Wrap(
-              spacing: 8, runSpacing: 6,
-              children: [
-                if (salary.isNotEmpty) _badge('💰 $salary', const Color(0xFFE8F5E9), const Color(0xFF2E7D32)),
-                if (loc.isNotEmpty) _badge('📍 $loc', const Color(0xFFE3F2FD), _kBlue),
-                if (vac.isNotEmpty) _badge('👥 $vac पद खाली', const Color(0xFFFFF3E0), const Color(0xFFE65100)),
-              ],
-            ),
-          ),
-          if (perks.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-              child: Wrap(
-                spacing: 6, runSpacing: 5,
-                children: perks.map((p) => _badge(p, const Color(0xFFE8F5E9), const Color(0xFF2E7D32))).toList(),
+    final jobType = (d['jobType'] ?? d['category'] ?? d['type'] ?? '').toString();
+    final rawPhone = (d['whatsapp'] ?? d['phone'] ?? d['contact'] ?? '').toString();
+    final List<String> perks = [];
+    final perksStr = (d['perks'] ?? '').toString();
+    if (d['accommodation'] == true || perksStr.contains('accommodation')) perks.add('🏠 रहना');
+    if (d['food'] == true || perksStr.contains('food')) perks.add('🍱 खाना');
+    if (d['trainTicket'] == true || perksStr.contains('train')) perks.add('🚂 टिकट');
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1565C0).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
+              child: const Icon(Icons.work, color: Color(0xFF1565C0), size: 22),
             ),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              if (company.isNotEmpty) Text(company, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            ])),
+            if (jobType.isNotEmpty) Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: const Color(0xFF1565C0).withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+              child: Text(jobType.length > 12 ? jobType.substring(0, 12) : jobType, style: const TextStyle(fontSize: 10, color: Color(0xFF1565C0))),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            if (location.isNotEmpty) ...[
+              const Icon(Icons.location_on, size: 13, color: Colors.grey),
+              const SizedBox(width: 3),
+              Flexible(child: Text(location, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+              const SizedBox(width: 12),
+            ],
+            if (salary.isNotEmpty) ...[
+              const Icon(Icons.currency_rupee, size: 13, color: Colors.green),
+              Flexible(child: Text(salary, style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600))),
+            ],
+          ]),
+          if (perks.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 4, children: perks.map((p) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade200)),
+              child: Text(p, style: TextStyle(fontSize: 11, color: Colors.orange.shade800)),
+            )).toList()),
+          ],
           const SizedBox(height: 12),
-          const Divider(height: 1, indent: 14, endIndent: 14),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: hasContact ? () => _call(d) : null,
-                  icon: const Icon(Icons.call_rounded, size: 16),
-                  label: const Text('Call करें', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _kBlue,
-                    side: const BorderSide(color: _kBlue),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
+          if (rawPhone.isNotEmpty)
+            SizedBox(width: double.infinity, child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: hasContact ? () => _wa(d) : null,
-                  icon: const Text('💬', style: TextStyle(fontSize: 15)),
-                  label: const Text('WhatsApp', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-        ],
+              onPressed: () => _openWhatsApp(rawPhone, title),
+              icon: const Text('💬', style: TextStyle(fontSize: 16)),
+              label: const Text('WhatsApp पर संपर्क करें', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            ))
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+              child: const Center(child: Text('📞 संपर्क जानकारी उपलब्ध नहीं', style: TextStyle(fontSize: 12, color: Colors.grey))),
+            ),
+        ]),
       ),
     );
   }
-
-  Widget _badge(String label, Color bg, Color fg) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-    child: Text(label, style: TextStyle(fontSize: 12, color: fg, fontWeight: FontWeight.w600)),
-  );
-
-  Widget _empty(String t, String s) => Center(
-    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Text('😔', style: TextStyle(fontSize: 48)),
-      const SizedBox(height: 12),
-      Text(t, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 4),
-      Text(s, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
-    ]),
-  );
 }
