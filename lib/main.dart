@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -38,50 +38,89 @@ class KaamDhandaApp extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF1565C0), width: 2),
-          ),
-        ),
         fontFamily: null,
       ),
-      home: const AuthGate(),
+      home: const SplashGate(),
+      routes: {
+        '/home': (ctx) => HomeScreen(
+          args: ModalRoute.of(ctx)?.settings.arguments as Map<String,dynamic>?,
+        ),
+        '/login': (ctx) => const LoginScreen(),
+      },
     );
   }
 }
 
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
+class SplashGate extends StatefulWidget {
+  const SplashGate({super.key});
+  @override
+  State<SplashGate> createState() => _SplashGateState();
+}
+
+class _SplashGateState extends State<SplashGate> {
+  @override
+  void initState() {
+    super.initState();
+    _checkLogin();
+  }
+
+  Future<void> _checkLogin() async {
+    await Future.delayed(const Duration(milliseconds: 1500));
+    final prefs = await SharedPreferences.getInstance();
+    final phone = prefs.getString('user_phone') ?? '';
+    final userType = prefs.getString('user_type') ?? 'guest';
+    final docId = prefs.getString('user_doc_id') ?? '';
+    final name = prefs.getString('user_name') ?? '';
+
+    if (mounted) {
+      if (phone.isNotEmpty && userType != 'guest') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeScreen(args: {
+              'phone': phone,
+              'userType': userType,
+              'docId': docId,
+              'name': name,
+            }),
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF1565C0),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.work_rounded, size: 64, color: Colors.white),
-                  SizedBox(height: 16),
-                  Text('KaamDhanda', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 24),
-                  CircularProgressIndicator(color: Colors.white),
-                ],
+    return Scaffold(
+      backgroundColor: const Color(0xFF1565C0),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 6))],
               ),
+              child: const Icon(Icons.work_rounded, size: 56, color: Color(0xFF1565C0)),
             ),
-          );
-        }
-        if (snapshot.hasData && snapshot.data != null) {
-          return const HomeScreen();
-        }
-        return const LoginScreen();
-      },
+            const SizedBox(height: 24),
+            const Text('KaamDhanda', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            const Text('Rozgaar Ka Sahi Platform', style: TextStyle(color: Colors.white70, fontSize: 16)),
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+          ],
+        ),
+      ),
     );
   }
 }
