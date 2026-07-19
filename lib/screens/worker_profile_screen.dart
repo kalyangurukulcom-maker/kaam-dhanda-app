@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
 
 class WorkerProfileScreen extends StatefulWidget {
-  final String workerId;
-  const WorkerProfileScreen({super.key, required this.workerId});
+  final String? workerId;
+  const WorkerProfileScreen({super.key, this.workerId});
+
   @override
   State<WorkerProfileScreen> createState() => _WorkerProfileScreenState();
 }
@@ -22,291 +22,191 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   }
 
   Future<void> _loadWorker() async {
-    setState(() => _loading = true);
+    if (widget.workerId == null || widget.workerId!.isEmpty) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       final doc = await _db.collection('workers').doc(widget.workerId).get();
-      if (doc.exists) {
-        _worker = {...doc.data()!, 'id': doc.id};
+      if (mounted) {
+        setState(() {
+          _worker = doc.exists ? Map<String, dynamic>.from(doc.data()!) : null;
+          _loading = false;
+        });
       }
     } catch (e) {
-      _worker = null;
+      if (mounted) setState(() => _loading = false);
     }
-    setState(() => _loading = false);
-  }
-
-  String get _jobType => ((_worker?['jobType'] ?? _worker?['category'] ?? '')).toString();
-  String get _location => ((_worker?['district'] ?? _worker?['city'] ?? _worker?['location'] ?? '')).toString();
-  String get _phone {
-    final raw = (_worker?['whatsapp'] ?? _worker?['phone'] ?? '').toString();
-    return raw.replaceAll(RegExp(r'[^0-9]'), '');
-  }
-
-  bool get _isAvailable {
-    final a = _worker?['available'];
-    if (a == null) return true;
-    if (a is bool) return a;
-    return a.toString().toLowerCase() == 'true';
   }
 
   Future<void> _openWhatsApp() async {
-    if (_phone.isEmpty) return;
-    final num = _phone.startsWith('91') && _phone.length > 10 ? _phone : '91$_phone';
-    final name = _worker?['name'] ?? 'कारीगर';
-    final msg = Uri.encodeComponent(
-        'नमस्ते $name जी, मुझे आपसे काम के बारे में बात करनी है। (काम धंधा ऐप से)');
-    final uri = Uri.parse('https://wa.me/$num?text=$msg');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  Future<void> _shareProfile() async {
-    final name = _worker?['name'] ?? 'कारीगर';
-    final jt = _jobType;
-    await Share.share(
-      '$name — $jt\nकाम धंधा ऐप पर उपलब्ध!\nhttps://kamdhanda.in',
-    );
+    if (_worker == null) return;
+    final rawNum = (_worker!['whatsapp'] ?? _worker!['phone'] ?? '').toString().trim();
+    if (rawNum.isEmpty) return;
+    final num = rawNum.replaceAll(RegExp(r'[^0-9]'), '');
+    final indNum = num.startsWith('91') ? num : '91$num';
+    final name = (_worker!['name'] ?? 'कारीगर').toString();
+    final msg = Uri.encodeComponent('नमस्ते $name जी, काम धंधा ऐप से संपर्क कर रहे हैं।');
+    final url = Uri.parse('https://wa.me/$indNum?text=$msg');
+    if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF1565C0))),
-      );
-    }
-    if (_worker == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('प्रोफाइल'),
-          backgroundColor: const Color(0xFF1565C0),
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(child: Text('कारीगर नहीं मिला')),
-      );
-    }
-
-    final name = (_worker!['name'] ?? 'कारीगर').toString();
-    final jt = _jobType;
-    final loc = _location;
-    final rating = double.tryParse(_worker!['rating']?.toString() ?? '') ?? 0;
-    final exp = (_worker!['experience'] ?? _worker!['experience_years'] ?? '').toString();
-    final verified = _worker!['verified'] == true;
-    final pic = (_worker!['profilePic'] ?? _worker!['photo'] ?? '').toString();
-    final bio = (_worker!['bio'] ?? _worker!['about'] ?? '').toString();
-    final skills = (_worker!['skills'] as List?)?.cast<String>() ?? [];
-
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 220,
-            pinned: true,
-            backgroundColor: const Color(0xFF1565C0),
-            iconTheme: const IconThemeData(color: Colors.white),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.share, color: Colors.white),
-                onPressed: _shareProfile,
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                color: const Color(0xFF1565C0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 50),
-                    CircleAvatar(
-                      radius: 45,
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      backgroundImage:
-                          pic.isNotEmpty ? NetworkImage(pic) : null,
-                      child: pic.isEmpty
-                          ? Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : 'क',
-                              style: const TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white),
-                            )
-                          : null,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1565C0),
+        title: const Text('Worker Profile',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1565C0)))
+          : _worker == null
+              ? const Center(
+                  child: Text('प्रोफाइल नहीं मिली',
+                      style: TextStyle(color: Colors.grey, fontSize: 16)))
+              : _buildProfile(),
+    );
+  }
+
+  Widget _buildProfile() {
+    final w = _worker!;
+    final name = (w['name'] ?? 'कारीगर').toString();
+    final jobType = (w['jobType'] ?? w['category'] ?? 'अन्य').toString();
+    final district = (w['district'] ?? w['city'] ?? '').toString();
+    final phone = (w['phone'] ?? '').toString();
+    final whatsapp = (w['whatsapp'] ?? phone).toString();
+    final available = w['available'] == true;
+    final experience = (w['experience'] ?? '').toString();
+    final salary = (w['salary'] ?? '').toString();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Card(
+            elevation: 3,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundColor: const Color(0xFF1565C0),
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : 'क',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(name,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold)),
-                        if (verified) ...[
-                          const SizedBox(width: 6),
-                          const Icon(Icons.verified,
-                              color: Colors.white, size: 20),
-                        ],
-                      ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(name,
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(jobType,
+                      style: const TextStyle(
+                          color: Color(0xFF1565C0), fontSize: 15)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: available
+                          ? Colors.green.shade50
+                          : Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: available
+                              ? Colors.green.shade200
+                              : Colors.red.shade200),
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _isAvailable
-                            ? const Color(0xFF25D366)
-                            : Colors.grey,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _isAvailable ? '✅ उपलब्ध है' : '⏸ व्यस्त है',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold),
-                      ),
+                    child: Text(
+                      available ? '✅ उपलब्ध' : '❌ अभी उपलब्ध नहीं',
+                      style: TextStyle(
+                          color: available ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.w600),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-          SliverToBoxAdapter(
+          const SizedBox(height: 16),
+          Card(
+            elevation: 2,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Info card
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          if (jt.isNotEmpty)
-                            _infoRow(Icons.work, 'काम का प्रकार', jt),
-                          if (loc.isNotEmpty)
-                            _infoRow(Icons.location_on, 'जगह', loc),
-                          if (exp.isNotEmpty)
-                            _infoRow(
-                                Icons.timeline, 'अनुभव', '$exp साल का अनुभव'),
-                          if (rating > 0)
-                            _infoRow(Icons.star, 'रेटिंग',
-                                '${rating.toStringAsFixed(1)} / 5.0 ⭐'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (bio.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('अपने बारे में',
-                                style: TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            Text(bio,
-                                style: const TextStyle(
-                                    color: Colors.grey, height: 1.5)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (skills.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('कौशल (Skills)',
-                                style: TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: skills
-                                  .map((s) => Chip(
-                                        label: Text(s,
-                                            style: const TextStyle(
-                                                fontSize: 12)),
-                                        backgroundColor: const Color(0xFF1565C0)
-                                            .withOpacity(0.1),
-                                        labelStyle: const TextStyle(
-                                            color: Color(0xFF1565C0)),
-                                      ))
-                                  .toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  // WhatsApp button
-                  if (_phone.isNotEmpty)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _openWhatsApp,
-                        icon: const Icon(Icons.chat, size: 20),
-                        label: const Text('WhatsApp पर संपर्क करें',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF25D366),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
+                  const Text('विवरण',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Divider(),
+                  if (district.isNotEmpty) _InfoTile('📍 जिला/शहर', district),
+                  if (phone.isNotEmpty) _InfoTile('📞 फोन', phone),
+                  if (whatsapp.isNotEmpty && whatsapp != phone)
+                    _InfoTile('💬 WhatsApp', whatsapp),
+                  if (experience.isNotEmpty) _InfoTile('🛠️ अनुभव', experience),
+                  if (salary.isNotEmpty) _InfoTile('💰 सैलरी', '₹$salary/माह'),
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          if (whatsapp.isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF25D366),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _openWhatsApp,
+                icon: const Icon(Icons.chat),
+                label: const Text('WhatsApp पर बात करें',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
         ],
       ),
     );
   }
+}
 
-  Widget _infoRow(IconData icon, String label, String value) {
+class _InfoTile extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoTile(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF1565C0), size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
-              ],
-            ),
+          SizedBox(
+            width: 130,
+            child: Text(label,
+                style: const TextStyle(color: Colors.grey, fontSize: 13)),
           ),
+          Expanded(
+              child: Text(value,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w500, fontSize: 14))),
         ],
       ),
     );
