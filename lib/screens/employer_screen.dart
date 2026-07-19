@@ -1,129 +1,73 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'employer_job_management_screen.dart';
 
 class EmployerScreen extends StatefulWidget {
   const EmployerScreen({super.key});
+
   @override
   State<EmployerScreen> createState() => _EmployerScreenState();
 }
 
-class _EmployerScreenState extends State<EmployerScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _EmployerScreenState extends State<EmployerScreen> {
   final _db = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
-
-  // Form fields
-  final _titleCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
-  final _salaryCtrl = TextEditingController();
-  final _locationCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _workersCtrl = TextEditingController();
-  String _selectedJobType = 'ड्राइवर';
-  bool _isLocal = true;
-  bool _submitting = false;
-
-  // Browse workers
-  List<Map<String, dynamic>> _workers = [];
-  bool _loadingWorkers = true;
-  String _filterCat = 'सभी';
-
-  static const List<String> _jobTypes = [
-    'ड्राइवर', 'निर्माण', 'सिक्योरिटी', 'द����W��������(�������लेक्ट्रीशियन', 'फैक्ट्री', 'डिलीवरी', 'होटल', 'अन्य',
-  ];
-
-  static const List<String> _filterCats = [
-    'सभी', 'ड्राइवर', 'निर्माण', 'सिक्योरिटी', 'दुकान',
-    'इलेक्ट्रीशियन', 'फैक्ट्री', 'डिलीवरी', 'होटल', 'अन्य',
+  List<Map<String, dynamic>> _allWorkers = [];
+  List<Map<String, dynamic>> _filtered = [];
+  bool _loading = true;
+  String _selectedJobType = 'सब';
+  final List<String> _jobTypes = [
+    'सब', 'मिस्त्री', 'प्लम्बर', 'इलेक्ट्रीशियन', 'पेंटर',
+    'कारपेंटर', 'मजदूर', 'ड्राइवर', 'सिक्योरिटी गार्ड', 'कुक'
   ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadWorkers();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _titleCtrl.dispose();
-    _descCtrl.dispose();
-    _salaryCtrl.dispose();
-    _locationCtrl.dispose();
-    _phoneCtrl.dispose();
-    _workersCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadWorkers() async {
-    setState(() => _loadingWorkers = true);
     try {
-      // NO where('isActive') filter — website saves 'available', not 'isActive'
       final snap = await _db.collection('workers').limit(100).get();
-      _workers = snap.docs.map((d) => {...d.data(), 'id': d.id}).toList();
-    } catch (e) {
-      _workers = [];
-    }
-    setState(() => _loadingWorkers = false);
-  }
-
-  List<Map<String, dynamic>> get _filteredWorkers {
-    if (_filterCat == 'सभी') return _workers;
-    return _workers.where((w) {
-      final jt = (wW'jobType'] ?? w['category'] ?? '').toString().toLowerCase();
-      return jt.contains(_filterCat.toLowerCase());
-    }).toList();
-  }
-
-  Future<void> _postJob() async {
-    if (_titleCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('कृपया नौकरी का नाम भरें')),
-      );
-      return;
-    }
-    setState(() => _submitting = true);
-    try {
-      final user = _auth.currentUser;
-      await _db.collection('jobs').add({
-        'title': _titleCtrl.text.trim(),
-        'description': _descCtrl.text.trim(),
-        'jobType': _selectedJobType,
-        'salary': _salaryCtrl.text.trim(),
-        'district': _locationCtrl.text.trim(),
-        'phone': _phoneCtrl.text.trim(),
-        'workersNeeded': int.tryParse(_workersCtrl.text.trim()) ?? 1,
-        'isLocal': _isLocal,
-        'uid': user?.uid ?? '',
-        'createdAt': FieldValue.serverTimestamp(),
-        'status': 'active',
-      });
-      _titleCtrl.clear();
-      _descCtrl.clear();
-      _salaryCtrl.clear();
-      _locationCtrl.clear();
-      _phoneCtrl.clear();
-      _workersCtrl.clear();
+      final list = <Map<String, dynamic>>[];
+      for (final d in snap.docs) {
+        final data = Map<String, dynamic>.from(d.data());
+        data['id'] = d.id;
+        if (data['available'] == true) list.add(data);
+      }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ नौकरी पोस्ट हो गई!'),
-            backgroundColor: Color(0xFF25D366),
-          ),
-        );
-        _tabController.animateTo(1);
+        setState(() {
+          _allWorkers = list;
+          _applyFilter();
+          _loading = false;
+        });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('गड़बड़ी: $e')),
-        );
-      }
+      if (mounted) setState(() => _loading = false);
     }
-    if (mounted) setState(() => _submitting = false);
+  }
+
+  void _applyFilter() {
+    if (_selectedJobType == 'सब') {
+      _filtered = List.from(_allWorkers);
+    } else {
+      _filtered = _allWorkers.where((w) {
+        final jt = (w['jobType'] ?? w['category'] ?? '').toString();
+        return jt == _selectedJobType;
+      }).toList();
+    }
+  }
+
+  Future<void> _callWhatsApp(Map<String, dynamic> w) async {
+    final rawNum = (w['whatsapp'] ?? w['phone'] ?? '').toString().trim();
+    if (rawNum.isEmpty) return;
+    final num = rawNum.replaceAll(RegExp(r'[^0-9]'), '');
+    final indNum = num.startsWith('91') ? num : '91$num';
+    final name = (w['name'] ?? 'कारीगर').toString();
+    final msg = Uri.encodeComponent('नमस्ते $name जी, काम धंधा ऐप से बात करना था।');
+    final url = Uri.parse('https://wa.me/$indNum?text=$msg');
+    if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -131,277 +75,162 @@ class _EmployerScreenState extends State<EmployerScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
       appBar: AppBar(
-        title: const Text('💼 नियोक्ता (Employer)',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF1565C0),
+        title: const Text('कारीगर ढूंढें',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: Colors.white),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          indicatorColor: Colors.white,
-          tabs: const [
-            Tab(text: '📝 नौकरी पोस्ट करें'),
-            Tab(text: '👷 कारीगर खोजें'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildPostJobTab(),
-          _buildBrowseWorkersTab(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPostJobTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('नौकरी की जानकारी',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  _field(_titleCtrl, 'नौकरी का नाम *', Icons.work),
-                  const SizedBox(height: 12),
-                  _field(_descCtrl, 'काम का विवरण', Icons.description, maxLines: 3),
-                  const SizedBox(height: 12),
-                  // Job type dropdown
-                  DropdownButtonFormField<String>(
-                    value: _selectedJobType,
-                    decoration: InputDecoration(
-                      labelText: 'काम का प्रकार',
-                      prefixIcon: const Icon(Icons.category),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      filled: true, fillColor: Colors.grey.shade50,
-                    ),
-                    items: _jobTypes
-                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _selectedJobType = v!),
-                  ),
-                  const SizedBox(height: 12),
-                  _field(_salaryCtrl, 'वेतन (जैसे: 12000-15000)', Icons.currency_rupee),
-                  const SizedBox(height: 12),
-                  _field(_locationCtrl, 'जिला / शहर', Icons.location_on),
-                  const SizedBox(height: 12),
-                  _field(_phoneCtrl, 'संपर्क नंबर', Icons.phone),
-                  const SizedBox(height: 12),
-                  _field(_workersCtrl, 'कितने कारीगर चाहिए', Icons.people,
-                      keyboardType: TextInputType.number),
-                  const SizedBox(height: 12),
-                  // Local / Bahar toggle
-                  Row(
-                    children: [
-                      const Icon(Icons.location_city, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      const Text('नौकरी कहां है?'),
-                      const Spacer(),
-                      ToggleButtons(
-                        isSelected: [_isLocal, !_isLocal],
-                        onPressed: (i) => setState(() => _isLocal = i == 0),
-                        borderRadius: BorderRadius.circular(8),
-                        selectedColor: Colors.white,
-                        fillColor: const Color(0xFF1565C0),
-                        children: const [
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text('🏠 लोकल'),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text('✈️ बाहर'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _submitting ? null : _postJob,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1565C0),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: _submitting
-                          ? const SizedBox(
-                              height: 20, width: 20,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
-                          : const Text('✅ नौकरी पोस्ट करें',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.work_outline, color: Colors.white),
+            tooltip: 'मेरी नौकरियां',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EmployerJobManagementScreen()),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _field(TextEditingController ctrl, String label, IconData icon,
-      {int maxLines = 1, TextInputType keyboardType = TextInputType.text}) {
-    return TextField(
-      controller: ctrl,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-      ),
-    );
-  }
-
-  Widget _buildBrowseWorkersTab() {
-    final workers = _filteredWorkers;
-    return Column(
-      children: [
-        // Category filter
-        SizedBox(
-          height: 48,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            itemCount: _filterCats.length,
-            itemBuilder: (_, i) {
-              final c = _filterCats[i];
-              final sel = c == _filterCat;
-              return GestureDetector(
-                onTap: () => setState(() => _filterCat = c),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: sel ? const Color(0xFF1565C0) : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF1565C0)),
-                  ),
-                  child: Text(
-                    c,
-                    style: TextStyle(
-                      color: sel ? Colors.white : const Color(0xFF1565C0),
-                      fontSize: 12,
-                      fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Expanded(
-          child: _loadingWorkers
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF1565C0)))
-              : workers.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.people_outline, size: 64, color: Colors.grey),
-                          const SizedBox(height: 16),
-                          const Text('कोई कारीगर नहीं मिला',
-                              style: TextStyle(color: Colors.grey)),
-                          TextButton(onPressed: _loadWorkers, child: const Text('फिर से खोजें')),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: workers.length,
-                      itemBuilder: (_, i) {
-                        final w = workers[i];
-                        final name = (w['name'] ?? 'कारीगर').toString();
-                        // Use jobType, not category
-                        final jt = (w['jobType'] ?? w['category'] ?? '').toString();
-                        final loc = (w['district'] ?? w['city'] ?? '').toString();
-                        final phone = (w['whatsapp'] ?? w['phone'] ?? '').toString();
-                        final avail = w['available'];
-                        final isAvail = avail == null ? true : (avail is bool ? avail : avail.toString() == 'true');
-
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF1565C0).withOpacity(0.1),
-                              child: Text(
-                                name.isNotEmpty ? name[0].toUpperCase() : 'क',
-                                style: const TextStyle(
-                                    color: Color(0xFF1565C0),
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            title: Text(name,
-                                style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (jt.isNotEmpty)
-                                  Text(jt,
-                                      style: const TextStyle(
-                                          color: Color(0xFF1565C0), fontSize: 12)),
-                                if (loc.isNotEmpty)
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.location_on,
-                                          size: 12, color: Colors.grey),
-                                      Text(loc,
-                                          style: const TextStyle(
-                                              fontSize: 12, color: Colors.grey)),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                            trailing: phone.isNotEmpty
-                                ? ElevatedButton(
-                                    onPressed: () async {
-                                      final ph = phone.replaceAll(RegExp(r'[^0-9]'), '');
-                                      final num = ph.startsWith('91') && ph.length > 10 ? ph : '91$ph';
-                                      final uri = Uri.parse('https://wa.me/$num');
-                                      if (await canLaunchUrl(uri)) {
-                                        await launchUrl(uri,
-                                            mode: LaunchMode.externalApplication);
-                                      }
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF25D366),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    child: const Text('WA', style: TextStyle(fontSize: 11)),
-                                  )
-                                : null,
-                          ),
-                        );
+      body: Column(
+        children: [
+          Container(
+            color: const Color(0xFF1565C0),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _jobTypes.map((jt) {
+                  final sel = _selectedJobType == jt;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(jt,
+                          style: TextStyle(
+                              color: sel ? const Color(0xFF1565C0) : Colors.white,
+                              fontWeight: FontWeight.w600)),
+                      selected: sel,
+                      onSelected: (_) {
+                        setState(() {
+                          _selectedJobType = jt;
+                          _applyFilter();
+                        });
                       },
+                      backgroundColor: Colors.white24,
+                      selectedColor: Colors.white,
                     ),
-        ),
-      ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF1565C0)))
+                : _filtered.isEmpty
+                    ? const Center(
+                        child: Text('कोई कारीगर उपलब्ध नहीं',
+                            style: TextStyle(color: Colors.grey, fontSize: 16)))
+                    : RefreshIndicator(
+                        onRefresh: _loadWorkers,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(12),
+                          itemCount: _filtered.length,
+                          itemBuilder: (ctx, i) {
+                            final w = _filtered[i];
+                            final name = (w['name'] ?? 'कारीगर').toString();
+                            final jobType =
+                                (w['jobType'] ?? w['category'] ?? 'अन्य').toString();
+                            final district =
+                                (w['district'] ?? w['city'] ?? '').toString();
+                            final phone =
+                                (w['whatsapp'] ?? w['phone'] ?? '').toString();
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 28,
+                                      backgroundColor: const Color(0xFF1565C0),
+                                      child: Text(
+                                        name.isNotEmpty
+                                            ? name[0].toUpperCase()
+                                            : 'क',
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(name,
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16)),
+                                          Text(jobType,
+                                              style: const TextStyle(
+                                                  color: Color(0xFF1565C0),
+                                                  fontSize: 13)),
+                                          if (district.isNotEmpty)
+                                            Text('📍 $district',
+                                                style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey)),
+                                          const SizedBox(height: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green.shade50,
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                              border: Border.all(
+                                                  color:
+                                                      Colors.green.shade200),
+                                            ),
+                                            child: const Text('✅ उपलब्ध',
+                                                style: TextStyle(
+                                                    color: Colors.green,
+                                                    fontSize: 11,
+                                                    fontWeight:
+                                                        FontWeight.w600)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (phone.isNotEmpty)
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFF25D366),
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 8),
+                                        ),
+                                        onPressed: () => _callWhatsApp(w),
+                                        icon: const Icon(Icons.chat, size: 16),
+                                        label: const Text('WhatsApp',
+                                            style: TextStyle(fontSize: 12)),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }
