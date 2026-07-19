@@ -128,9 +128,7 @@ class _HeroBanner extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('⭐ झारखंड का नंबर 1 जॉब प्लेटफॉर्म', style: TextStyle(color: Colors.white70, fontSize: 12)),
         const SizedBox(height: 8),
-        const Text('लोकल और बाहर
-दोनों की नौकरी
-एक जगह मिलेगी!', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, height: 1.3)),
+        const Text('लोकल और बाहर\nदोनों की नौकरी\nएक जगह मिलेगी!', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, height: 1.3)),
         const SizedBox(height: 6),
         const Text('कोई दलाली नहीं — बिल्कुल मुफ़्त', style: TextStyle(color: Colors.white70, fontSize: 13)),
         const SizedBox(height: 18),
