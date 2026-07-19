@@ -8,7 +8,8 @@ import 'nearby_workers_screen.dart';
 import 'employer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final Map<String, dynamic>? args;
+  const HomeScreen({super.key, this.args});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -239,7 +240,7 @@ class _HomeTab extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: const [
-  2               _CatItem(emoji: '🚗', label: 'ड्राइवर'),
+                  _CatItem(emoji: '🚗', label: 'ड्राइवर'),
                   _CatItem(emoji: '🏗️', label: 'निर्माण'),
                   _CatItem(emoji: '🛡️', label: 'सिक्योरिटी'),
                   _CatItem(emoji: '🏪', label: 'दुकान'),
