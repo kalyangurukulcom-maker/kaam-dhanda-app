@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'jobs_screen.dart';
 import 'worker_marketplace_screen.dart';
 import 'nearby_workers_screen.dart';
 import 'employer_screen.dart';
+import 'login_screen.dart';
 import 'web_view_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,10 +18,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final _auth = FirebaseAuth.instance;
-  final _db = FirebaseFirestore.instance;
-  int _totalWorkers = 0;
-  int _totalJobs = 0;
 
   final List<Widget> _screens = const [
     _HomeTab(),
@@ -28,31 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
     NearbyWorkersScreen(),
     WorkerMarketplaceScreen(),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadStats();
-  }
-
-  Future<void> _loadStats() async {
-    try {
-      final w = await _db.collection('workers').get();
-      final j = await _db.collection('jobs').get();
-      if (mounted) {
-        setState(() {
-          _totalWorkers = w.docs.length;
-          _totalJobs = j.docs.length;
-        });
-      }
-    } catch (e) {
-      // ignore stats error
-    }
-  }
-
-  Future<void> _signOut() async {
-    await _auth.signOut();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,27 +36,93 @@ class _HomeScreenState extends State<HomeScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF1565C0),
         unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.white,
+        elevation: 8,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'घर'),
-          BottomNavigationBarItem(icon: Icon(Icons.work), label: 'नौकरी'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.location_on), label: 'पास में'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'कारीगर'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'होम'),
+          BottomNavigationBarItem(icon: Icon(Icons.work_rounded), label: 'नौकरी'),
+          BottomNavigationBarItem(icon: Icon(Icons.location_on_rounded), label: 'पास में'),
+          BottomNavigationBarItem(icon: Icon(Icons.people_rounded), label: 'कारीगर'),
         ],
       ),
     );
   }
 }
 
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   const _HomeTab();
 
-  Future<void> _openWhatsApp(BuildContext context) async {
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  String _phone = '';
+  String _userName = '';
+  String _userType = 'guest';
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final phone = prefs.getString('user_phone') ?? '';
+    final name = prefs.getString('user_name') ?? '';
+    final userType = prefs.getString('user_type') ?? 'guest';
+    if (mounted) {
+      setState(() {
+        _phone = phone;
+        _userName = name;
+        _userType = userType;
+        _isLoggedIn = phone.isNotEmpty && userType != 'guest';
+      });
+    }
+  }
+
+  Future<void> _openWhatsApp() async {
     const uri =
-        'https://wa.me/919999999999?text=नमस्ते, काम धंधा ऐप से मदद चाहिए।';
+        'https://wa.me/919999999999?text=नमस्ते, मुझे काम धंधा ऐप से मदद चाहिए।';
     final url = Uri.parse(uri);
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Logout'),
+        content: const Text('क्या आप logout करना चाहते हैं?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('नहीं'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('हाँ, Logout', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await FirebaseAuth.instance.signOut();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (_) => false,
+        );
+      }
     }
   }
 
@@ -92,132 +130,312 @@ class _HomeTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1565C0),
-        title: const Text(
-          'काम धंधा',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
+      body: CustomScrollView(
+        slivers: [
+          _buildAppBar(),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                _buildUserBanner(),
+                _buildSearchBar(),
+                _buildStats(),
+                _buildQuickActions(),
+                _buildCategories(),
+                _buildEmployerCard(),
+                _buildWebFeatures(),
+                _buildWhatsAppHelp(),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(context),
-            _buildStats(context),
-            _buildQuickActions(context),
-            _buildCategories(context),
-            _buildEmployerCard(context),
-            _buildWebFeatures(context),
-            _buildWhatsAppHelp(context),
-            const SizedBox(height: 20),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final phone = user?.phoneNumber ?? '';
-    return Container(
-      color: const Color(0xFF1565C0),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  SliverAppBar _buildAppBar() {
+    return SliverAppBar(
+      floating: true,
+      snap: true,
+      backgroundColor: const Color(0xFF1565C0),
+      elevation: 0,
+      title: Row(
         children: [
-          Text(
-            'नमस्ते! 👋',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.85),
-              fontSize: 14,
-            ),
-          ),
-          Text(
-            phone.isNotEmpty ? phone : 'काम धंधा ऐप',
-            style: const TextStyle(
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
               color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: const Icon(Icons.work_rounded, color: Color(0xFF1565C0), size: 20),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(width: 10),
           const Text(
-            'आपके लिए सही नौकरी खोजें',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
+            'काम धंधा',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
           ),
         ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 24),
+          onPressed: () {},
+        ),
+        GestureDetector(
+          onTap: _isLoggedIn
+              ? _logout
+              : () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                  _loadUserData();
+                },
+          child: Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              _isLoggedIn ? 'Logout' : 'Login',
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserBanner() {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 20, 20, 36),
+      child: _isLoggedIn ? _buildLoggedInBanner() : _buildLoginPrompt(),
+    );
+  }
+
+  Widget _buildLoggedInBanner() {
+    final typeLabel = _userType == 'worker'
+        ? 'कारीगर'
+        : _userType == 'employer'
+            ? 'नियोक्ता'
+            : 'सदस्य';
+    final typeColor = _userType == 'worker' ? const Color(0xFF4CAF50) : const Color(0xFFFF9800);
+    final initial = _userName.isNotEmpty
+        ? _userName[0]
+        : _phone.isNotEmpty
+            ? _phone[_phone.length - 1]
+            : '?';
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 30,
+          backgroundColor: Colors.white.withOpacity(0.2),
+          child: Text(
+            initial.toUpperCase(),
+            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'नमस्ते, ${_userName.isNotEmpty ? _userName : 'दोस्त'}! 👋',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: typeColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(typeLabel,
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_phone.isNotEmpty)
+                    Text(_phone, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginPrompt() {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('नमस्ते! 👋', style: TextStyle(color: Colors.white70, fontSize: 15)),
+              const SizedBox(height: 6),
+              const Text(
+                'अपना काम धंधा\nशुरू करें',
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, height: 1.2),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Login करें और हजारों नौकरियां खोजें',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF1565C0),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    ),
+                    onPressed: () async {
+                      await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                      _loadUserData();
+                    },
+                    child: const Text('Login करें', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
+                  const SizedBox(width: 10),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white54),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    onPressed: () async {
+                      await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+                      _loadUserData();
+                    },
+                    child: const Text('Register', style: TextStyle(fontSize: 13)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const Icon(Icons.work_history_rounded, size: 90, color: Colors.white12),
+      ],
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Transform.translate(
+      offset: const Offset(0, -18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))
+            ],
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 14),
+              const Icon(Icons.search_rounded, color: Color(0xFF1565C0), size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const JobsScreen())),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 15),
+                    child: Text(
+                      'नौकरी या कारीगर खोजें...',
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const JobsScreen())),
+                child: Container(
+                  margin: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1565C0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('खोजें',
+                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildStats(BuildContext context) {
+  Widget _buildStats() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       child: Row(
         children: [
-          _StatCard(icon: Icons.people, label: 'कारीगर', value: '500+'),
-          const SizedBox(width: 12),
-          _StatCard(icon: Icons.work, label: 'नौकरियां', value: '200+'),
-          const SizedBox(width: 12),
-          _StatCard(icon: Icons.location_city, label: 'शहर', value: '30+'),
+          _StatTile(value: '500+', label: 'कारीगर', icon: Icons.people_rounded, color: const Color(0xFF1565C0)),
+          const SizedBox(width: 10),
+          _StatTile(value: '200+', label: 'नौकरियां', icon: Icons.work_rounded, color: const Color(0xFFE65100)),
+          const SizedBox(width: 10),
+          _StatTile(value: '30+', label: 'शहर', icon: Icons.location_city_rounded, color: const Color(0xFF2E7D32)),
         ],
       ),
     );
   }
 
-  Widget _buildQuickActions(BuildContext context) {
+  Widget _buildQuickActions() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'जल्दी करें',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
+          const Text('क्या करना है?',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1A1A2E))),
+          const SizedBox(height: 12),
           Row(
             children: [
-              _QuickBtn(
-                icon: Icons.work_outline,
-                label: 'नौकरी खोजें',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const JobsScreen()),
-                ),
+              _ActionCard(
+                icon: Icons.search_rounded,
+                label: 'नौकरी\nखोजें',
+                color: const Color(0xFF1565C0),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const JobsScreen())),
               ),
-              const SizedBox(width: 12),
-              _QuickBtn(
-                icon: Icons.people_outline,
-                label: 'कारीगर ढूंढें',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const WorkerMarketplaceScreen()),
-                ),
+              const SizedBox(width: 10),
+              _ActionCard(
+                icon: Icons.people_rounded,
+                label: 'कारीगर\nढूंढें',
+                color: const Color(0xFFE65100),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkerMarketplaceScreen())),
               ),
-              const SizedBox(width: 12),
-              _QuickBtn(
-                icon: Icons.location_on_outlined,
-                label: 'पास में',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const NearbyWorkersScreen()),
-                ),
+              const SizedBox(width: 10),
+              _ActionCard(
+                icon: Icons.location_on_rounded,
+                label: 'पास में\nकारीगर',
+                color: const Color(0xFF2E7D32),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NearbyWorkersScreen())),
+              ),
+              const SizedBox(width: 10),
+              _ActionCard(
+                icon: Icons.post_add_rounded,
+                label: 'नौकरी\nदें',
+                color: const Color(0xFF6A1B9A),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployerScreen())),
               ),
             ],
           ),
@@ -226,68 +444,62 @@ class _HomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildCategories(BuildContext context) {
+  Widget _buildCategories() {
     final cats = [
-      {'emoji': '🧱', 'name': 'राजमिस्त्री'},
-      {'emoji': '🔧', 'name': 'प्लंबर'},
-      {'emoji': '⚡', 'name': 'इलेक्ट्रिशियन'},
-      {'emoji': '🎨', 'name': 'पेंटर'},
-      {'emoji': '🪚', 'name': 'कारपेंटर'},
-      {'emoji': '🧵', 'name': 'दर्जी'},
-      {'emoji': '👨‍🍳', 'name': 'रसोइया'},
-      {'emoji': '🏠', 'name': 'घरेलू'},
+      {'emoji': '🧱', 'name': 'राजमिस्त्री', 'color': 0xFFFF5722},
+      {'emoji': '🔧', 'name': 'प्लंबर', 'color': 0xFF2196F3},
+      {'emoji': '⚡', 'name': 'इलेक्ट्रि.', 'color': 0xFFFF9800},
+      {'emoji': '🎨', 'name': 'पेंटर', 'color': 0xFF9C27B0},
+      {'emoji': '🪚', 'name': 'कारपेंटर', 'color': 0xFF795548},
+      {'emoji': '🧹', 'name': 'सफाई', 'color': 0xFF00BCD4},
+      {'emoji': '👨‍🍳', 'name': 'रसोइया', 'color': 0xFFE91E63},
+      {'emoji': '🚗', 'name': 'ड्राइवर', 'color': 0xFF607D8B},
     ];
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'श्रेणियां',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text('श्रेणियां',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1A1A2E))),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
             height: 90,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: cats.length,
               itemBuilder: (ctx, i) {
-                return Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  width: 72,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                final c = cats[i];
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                      context, MaterialPageRoute(builder: (_) => const WorkerMarketplaceScreen())),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 10),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            color: Color(c['color'] as int).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: Color(c['color'] as int).withOpacity(0.3), width: 1.5),
+                          ),
+                          child: Center(
+                            child: Text(c['emoji'] as String, style: const TextStyle(fontSize: 26)),
+                          ),
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          cats[i]['emoji']!,
-                          style: const TextStyle(fontSize: 28),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        cats[i]['name']!,
-                        style: const TextStyle(fontSize: 11),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                        const SizedBox(height: 5),
+                        Text(c['name'] as String,
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF444444))),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -298,44 +510,52 @@ class _HomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildEmployerCard(BuildContext context) {
+  Widget _buildEmployerCard() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       child: GestureDetector(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const EmployerScreen()),
-        ),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployerScreen())),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: const Color(0xFF1565C0),
-            borderRadius: BorderRadius.circular(14),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: const Color(0xFF1565C0).withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4))
+            ],
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.business_center, color: Colors.white, size: 36),
-              SizedBox(width: 14),
-              Expanded(
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.business_center_rounded, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'मालिक हैं? कारीगर ढूंढें',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'उपलब्ध कारीगर देखें और सीधे WhatsApp करें',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
+                    Text('मालिक हैं? कारीगर ढूंढें',
+                        style: TextStyle(
+                            color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 4),
+                    Text('अभी कारीगर भेजें और WhatsApp से बात करें',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
             ],
           ),
         ),
@@ -343,62 +563,73 @@ class _HomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildWebFeatures(BuildContext context) {
+  Widget _buildWebFeatures() {
     final features = [
       {
         'icon': Icons.app_registration,
         'label': 'काम पर रखें',
-        'sub': 'कारीगर hire करें',
+        'sub': 'Hire करें',
         'url': 'https://kamdhanda.in/hire.html',
-        'color': const Color(0xFF0D47A1),
+        'color': const Color(0xFF0D47A1)
       },
       {
         'icon': Icons.school,
         'label': 'गुरुकुल साथी',
-        'sub': 'Training & Skill',
+        'sub': 'Training',
         'url': 'https://kamdhanda.in/gurkul.html',
-        'color': const Color(0xFF1B5E20),
+        'color': const Color(0xFF1B5E20)
       },
       {
         'icon': Icons.agriculture,
         'label': 'ग्रामीण साथी',
         'sub': 'गांव में काम',
         'url': 'https://kamdhanda.in/grameen-sathi.html',
-        'color': const Color(0xFF4A148C),
+        'color': const Color(0xFF4A148C)
       },
       {
         'icon': Icons.engineering,
         'label': 'Field Staff',
         'sub': 'फील्ड जॉब्स',
         'url': 'https://kamdhanda.in/field-staff.html',
-        'color': const Color(0xFFBF360C),
+        'color': const Color(0xFFBF360C)
       },
       {
         'icon': Icons.calculate,
-        'label': 'Salary Calculator',
+        'label': 'Salary Calc',
         'sub': 'वेतन जानें',
         'url': 'https://kamdhanda.in/salary-calculator.html',
-        'color': const Color(0xFF006064),
+        'color': const Color(0xFF006064)
       },
       {
         'icon': Icons.description,
         'label': 'Resume Builder',
         'sub': 'CV बनाएं',
         'url': 'https://kamdhanda.in/resume-builder.html',
-        'color': const Color(0xFF33691E),
+        'color': const Color(0xFF33691E)
       },
     ];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '🌐 और Features',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                    color: const Color(0xFF1565C0).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.public_rounded, color: Color(0xFF1565C0), size: 18),
+              ),
+              const SizedBox(width: 8),
+              const Text('और Features',
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1A1A2E))),
+            ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -407,7 +638,7 @@ class _HomeTab extends StatelessWidget {
               crossAxisCount: 3,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
-              childAspectRatio: 1.0,
+              childAspectRatio: 0.95,
             ),
             itemBuilder: (ctx, i) {
               final f = features[i];
@@ -424,33 +655,39 @@ class _HomeTab extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.07),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2))
                     ],
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(f['icon'] as IconData,
-                          color: f['color'] as Color, size: 28),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: (f['color'] as Color).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(f['icon'] as IconData, color: f['color'] as Color, size: 24),
+                      ),
                       const SizedBox(height: 6),
                       Text(
                         f['label'] as String,
                         style: const TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.bold),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF333333)),
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         f['sub'] as String,
-                        style:
-                            const TextStyle(fontSize: 10, color: Colors.grey),
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -466,44 +703,42 @@ class _HomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildWhatsAppHelp(BuildContext context) {
+  Widget _buildWhatsAppHelp() {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: GestureDetector(
-        onTap: () => _openWhatsApp(context),
+        onTap: _openWhatsApp,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF25D366).withOpacity(0.1),
+            color: const Color(0xFF25D366).withOpacity(0.08),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: const Color(0xFF25D366).withOpacity(0.3),
-            ),
+            border: Border.all(color: const Color(0xFF25D366).withOpacity(0.3)),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.chat, color: Color(0xFF25D366), size: 32),
-              SizedBox(width: 14),
-              Expanded(
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF25D366).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.chat_rounded, color: Color(0xFF25D366), size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'WhatsApp सहायता',
-                      style: TextStyle(
-                        color: Color(0xFF25D366),
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'कोई समस्या? हमसे बात करें',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
-                    ),
+                    Text('WhatsApp सहायता',
+                        style: TextStyle(
+                            color: Color(0xFF25D366), fontSize: 15, fontWeight: FontWeight.bold)),
+                    Text('कोई समस्या? हमसे बात करें',
+                        style: TextStyle(color: Colors.grey, fontSize: 12)),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+              const Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey, size: 14),
             ],
           ),
         ),
@@ -512,49 +747,36 @@ class _HomeTab extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
+// ── Reusable widgets ────────────────────────────────────────
 
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+class _StatTile extends StatelessWidget {
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _StatTile(
+      {required this.value, required this.label, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))
           ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: const Color(0xFF1565C0), size: 22),
+            Icon(icon, color: color, size: 22),
             const SizedBox(height: 4),
-            Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Color(0xFF1565C0),
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
+            Text(value,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
       ),
@@ -562,16 +784,14 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _QuickBtn extends StatelessWidget {
+class _ActionCard extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color color;
   final VoidCallback onTap;
 
-  const _QuickBtn({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
+  const _ActionCard(
+      {required this.icon, required this.label, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -579,28 +799,32 @@ class _QuickBtn extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
+                  color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))
             ],
           ),
           child: Column(
             children: [
-              Icon(icon, color: const Color(0xFF1565C0), size: 26),
-              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(height: 6),
               Text(
                 label,
-                style: const TextStyle(fontSize: 11, color: Colors.black87),
+                style: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF333333)),
                 textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
               ),
             ],
           ),
