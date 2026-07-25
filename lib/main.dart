@@ -13,11 +13,9 @@ void main() async {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
     final msg = e.toString();
-    // duplicate-app = Firebase already initialized (native side) — this is FINE, ignore it
     if (!msg.contains('duplicate-app') && !msg.contains('already exists')) {
       _firebaseError = msg;
     }
-    // duplicate-app error ko silently ignore karo — app normal chalega
   }
   runApp(const KaamDhandaApp());
 }
@@ -64,9 +62,7 @@ class KaamDhandaApp extends StatelessWidget {
       ),
       home: const SplashGate(),
       routes: {
-        '/home': (ctx) => HomeScreen(
-          args: ModalRoute.of(ctx)?.settings.arguments as Map<String,dynamic>?,
-        ),
+        '/home': (ctx) => const HomeScreen(),
         '/login': (ctx) => const LoginScreen(),
       },
     );
@@ -92,18 +88,12 @@ class _SplashGateState extends State<SplashGate> {
       final prefs = await SharedPreferences.getInstance();
       final phone = prefs.getString('user_phone') ?? '';
       final userType = prefs.getString('user_type') ?? 'guest';
-      final docId = prefs.getString('user_doc_id') ?? '';
-      final name = prefs.getString('user_name') ?? '';
 
       if (mounted) {
         if (phone.isNotEmpty && userType != 'guest') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => HomeScreen(args: {
-                'phone': phone, 'userType': userType, 'docId': docId, 'name': name,
-              }),
-            ),
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
           );
         } else {
           Navigator.pushReplacement(
