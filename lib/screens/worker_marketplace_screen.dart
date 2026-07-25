@@ -3,363 +3,564 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class WorkerMarketplaceScreen extends StatefulWidget {
-  const WorkerMarketplaceScreen({Key? key}) : super(key: key);
+  const WorkerMarketplaceScreen({super.key});
+
   @override
-  State<WorkerMarketplaceScreen> createState() => _WorkerMarketplaceScreenState();
+  State<WorkerMarketplaceScreen> createState() =>
+      _WorkerMarketplaceScreenState();
 }
 
 class _WorkerMarketplaceScreenState extends State<WorkerMarketplaceScreen> {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final TextEditingController _searchCtrl = TextEditingController();
-  String _activeCategory = 'सभी';
-  String _sortBy = 'newest';
-  bool _availOnly = false;
-  List<Map<String, dynamic>> _allWorkers = [];
-  List<Map<String, dynamic>> _filtered = [];
-  bool _loading = true;
+  final _firestore = FirebaseFirestore.instance;
 
-  static const List<Map<String, dynamic>> _categories = [
-    {'label': 'सभी', 'icon': '👷'},
-    {'label': 'इलेक्ट्रीशियन', 'icon': '⚡'},
-    {'label': 'प्लम्बर', 'icon': '🔧'},
-    {'label': 'कारपेंटर', 'icon': '🪵'},
-    {'label': 'पेंटर', 'icon': '🎨'},
-    {'label': 'मजदूर', 'icon': '🏗️'},
-    {'label': 'ड्राइवर', 'icon': '🚗'},
-    {'label': 'सिक्योरिटी', 'icon': '🛡️'},
-    {'label': 'Cook', 'icon': '🍽️'},
-    {'label': 'Welder', 'icon': '🔩'},
+  // Filters
+  String _selectedCategory = 'All';
+  String _selectedExp = 'All';
+  bool _availableOnly = false;
+  int _maxSalary = 0; // 0 = no filter
+  String _sortBy = 'Recent'; // 'Recent' | 'Rating' | 'Salary'
+
+  final List<String> _categories = [
+    'All', 'Construction', 'Driver', 'Security',
+    'Housekeeping', 'Factory', 'Farming', 'Plumber', 'Electrician', 'Cook'
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadWorkers();
-    _searchCtrl.addListener(_applyFilters);
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadWorkers() async {
-    setState(() => _loading = true);
-    try {
-      // NO where() filter — get ALL workers
-      final snap = await _db.collection('workers').limit(100).get();
-      _allWorkers = snap.docs.map((d) => {...d.data(), 'id': d.id}).toList();
-    } catch (e) {
-      _allWorkers = [];
-    }
-    _applyFilters();
-    setState(() => _loading = false);
-  }
-
-  String _getCat(Map<String, dynamic> w) =>
-      (w['jobType'] ?? w['category'] ?? '').toString();
-
-  String _getLoc(Map<String, dynamic> w) =>
-      (w['district'] ?? w['city'] ?? w['location'] ?? '').toString();
-
-  void _applyFilters() {
-    final query = _searchCtrl.text.trim().toLowerCase();
-    var list = List<Map<String, dynamic>>.from(_allWorkers);
-    if (_availOnly) list = list.where((w) => w['available'] == true).toList();
-    if (_activeCategory != 'सभी') {
-      list = list.where((w) => _getCat(w).toLowerCase().contains(_activeCategory.toLowerCase())).toList();
-    }
-    if (query.isNotEmpty) {
-      list = list.where((w) =>
-        (w['name'] ?? '').toString().toLowerCase().contains(query) ||
-        _getCat(w).toLowerCase().contains(query) ||
-        _getLoc(w).toLowerCase().contains(query)
-      ).toList();
-    }
-    list.sort((a, b) {
-      if (_sortBy == 'rating') return ((b['rating'] as num? ?? 0)).compareTo((a['rating'] as num? ?? 0));
-      if (_sortBy == 'price_low') return ((a['dailyRate'] as num? ?? 0)).compareTo((b['dailyRate'] as num? ?? 0));
-      return 0;
-    });
-    setState(() => _filtered = list);
-  }
+  final List<String> _expOptions = ['All', 'Fresher', '1-3 साल', '3+ साल'];
+  final List<String> _sortOptions = ['Recent', 'Rating', 'Salary'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
+        title: const Text('Worker Marketplace'),
         backgroundColor: const Color(0xFF1565C0),
         foregroundColor: Colors.white,
-        title: const Text('👷 कारीगर ढूंढें', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(_availOnly ? Icons.toggle_on : Icons.toggle_off, size: 28, color: _availOnly ? Colors.greenAccent : Colors.white60),
-            tooltip: 'उपलब्ध कारीगर',
-            onPressed: () { setState(() => _availOnly = !_availOnly); _applyFilters(); },
-          ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.sort),
-            onSelected: (val) { setState(() => _sortBy = val); _applyFilters(); },
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'rating', child: Text('⭐ Rating से')),
-              const PopupMenuItem(value: 'price_low', child: Text('💰 कम Rate से')),
-              const PopupMenuItem(value: 'newest', child: Text('🆕 नए पहले')),
-            ],
+            icon: const Icon(Icons.sort, color: Colors.white),
+            tooltip: 'Sort by',
+            onSelected: (v) => setState(() => _sortBy = v),
+            itemBuilder: (_) => _sortOptions
+                .map((s) => PopupMenuItem(
+                    value: s,
+                    child: Row(children: [
+                      Icon(
+                          _sortBy == s ? Icons.check : Icons.sort,
+                          size: 16,
+                          color:
+                              _sortBy == s ? const Color(0xFF1565C0) : Colors.grey),
+                      const SizedBox(width: 8),
+                      Text(s),
+                    ])))
+                .toList(),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-            child: TextField(
-              controller: _searchCtrl,
-              style: const TextStyle(color: Colors.black87, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'नाम, काम या जिला खोजें...',
-                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
-                suffixIcon: _searchCtrl.text.isNotEmpty
-                    ? IconButton(icon: const Icon(Icons.clear, color: Colors.grey, size: 18), onPressed: () { _searchCtrl.clear(); _applyFilters(); })
-                    : null,
-                filled: true, fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              ),
+      ),
+      body: Column(
+        children: [
+          // ── Category filter row ──
+          SizedBox(
+            height: 50,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              itemCount: _categories.length,
+              itemBuilder: (_, i) {
+                final cat = _categories[i];
+                final sel = cat == _selectedCategory;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(cat, style: const TextStyle(fontSize: 12)),
+                    selected: sel,
+                    onSelected: (_) =>
+                        setState(() => _selectedCategory = cat),
+                    selectedColor: const Color(0xFF1565C0),
+                    labelStyle: TextStyle(
+                        color: sel ? Colors.white : Colors.black87),
+                    backgroundColor: Colors.grey.shade100,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                );
+              },
             ),
           ),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1565C0)))
-          : RefreshIndicator(
-              onRefresh: _loadWorkers,
-              color: const Color(0xFF1565C0),
-              child: CustomScrollView(slivers: [
-                SliverToBoxAdapter(child: _buildCategories()),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: Row(children: [
-                      Text(_filtered.length.toString() + ' कारीगर मिले', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-                      const Spacer(),
-                      if (_availOnly) Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300)),
-                        child: const Text('✅ उपलब्ध', style: TextStyle(fontSize: 11, color: Colors.green)),
-                      ),
-                    ]),
-                  ),
+
+          // ── Experience + Available + Salary filter row ──
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                // Experience chips
+                ..._expOptions.map((exp) {
+                  final sel = exp == _selectedExp;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(exp,
+                          style: const TextStyle(fontSize: 11)),
+                      selected: sel,
+                      onSelected: (_) =>
+                          setState(() => _selectedExp = exp),
+                      selectedColor: const Color(0xFFF57C00),
+                      labelStyle: TextStyle(
+                          color: sel ? Colors.white : Colors.black87,
+                          fontSize: 11),
+                    ),
+                  );
+                }),
+                const SizedBox(width: 4),
+                // Available today toggle
+                FilterChip(
+                  label: const Text('Available Today',
+                      style: TextStyle(fontSize: 11)),
+                  selected: _availableOnly,
+                  onSelected: (v) => setState(() => _availableOnly = v),
+                  selectedColor: Colors.green,
+                  labelStyle: TextStyle(
+                      color: _availableOnly ? Colors.white : Colors.black87,
+                      fontSize: 11),
+                  avatar: Icon(Icons.circle,
+                      size: 8,
+                      color: _availableOnly ? Colors.white : Colors.grey),
                 ),
-                _filtered.isEmpty
-                    ? SliverFillRemaining(child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.search_off, size: 60, color: Colors.grey.shade300),
-                        const SizedBox(height: 12),
-                        Text(_allWorkers.isEmpty ? 'अभी कोई कारीगर उपलब्ध नहीं' : 'कोई कारीगर नहीं मिला', style: TextStyle(color: Colors.grey.shade500, fontSize: 15)),
-                        if (_allWorkers.isEmpty) TextButton(onPressed: _loadWorkers, child: const Text('फिर से कोशिश करें')),
-                      ])))
-                    : SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
-                        sliver: SliverList(delegate: SliverChildBuilderDelegate(
-                          (ctx, i) => _WorkerCard(worker: _filtered[i], getCat: _getCat, getLoc: _getLoc, onHire: () => _showHireSheet(context, _filtered[i])),
-                          childCount: _filtered.length,
-                        )),
-                      ),
-              ]),
+                const SizedBox(width: 6),
+                // Salary filter
+                PopupMenuButton<int>(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _maxSalary > 0
+                          ? Colors.purple.shade100
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: _maxSalary > 0
+                              ? Colors.purple
+                              : Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.currency_rupee, size: 13),
+                        Text(
+                          _maxSalary == 0
+                              ? 'Budget'
+                              : 'Max ₹$_maxSalary',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        const Icon(Icons.arrow_drop_down, size: 16),
+                      ],
+                    ),
+                  ),
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 0, child: Text('Any Budget')),
+                    const PopupMenuItem(
+                        value: 300, child: Text('Max ₹300/day')),
+                    const PopupMenuItem(
+                        value: 500, child: Text('Max ₹500/day')),
+                    const PopupMenuItem(
+                        value: 800, child: Text('Max ₹800/day')),
+                    const PopupMenuItem(
+                        value: 1200, child: Text('Max ₹1200/day')),
+                  ],
+                  onSelected: (v) => setState(() => _maxSalary = v),
+                ),
+              ],
             ),
-    );
-  }
+          ),
 
-  Widget _buildCategories() {
-    return SizedBox(
-      height: 52,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: _categories.length,
-        itemBuilder: (ctx, i) {
-          final cat = _categories[i];
-          final active = _activeCategory == cat['label'];
-          return GestureDetector(
-            onTap: () { setState(() => _activeCategory = cat['label'] as String); _applyFilters(); },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: active ? const Color(0xFF1565C0) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: active ? const Color(0xFF1565C0) : Colors.grey.shade300),
-                boxShadow: active ? [BoxShadow(color: const Color(0xFF1565C0).withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 2))] : [],
-              ),
-              child: Text(
-                cat['icon'].toString() + ' ' + cat['label'].toString(),
-                style: TextStyle(fontSize: 12, color: active ? Colors.white : Colors.black87, fontWeight: active ? FontWeight.bold : FontWeight.normal),
+          // ── Active filter indicator ──
+          if (_selectedCategory != 'All' ||
+              _selectedExp != 'All' ||
+              _availableOnly ||
+              _maxSalary > 0)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(Icons.filter_list, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  const Text('Filters active',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _selectedCategory = 'All';
+                      _selectedExp = 'All';
+                      _availableOnly = false;
+                      _maxSalary = 0;
+                      _sortBy = 'Recent';
+                    }),
+                    child: const Text('Clear All',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
 
-  void _showHireSheet(BuildContext context, Map<String, dynamic> worker) {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            CircleAvatar(backgroundColor: const Color(0xFF1565C0).withOpacity(0.1), child: Text((worker['emoji'] ?? '👷').toString(), style: const TextStyle(fontSize: 20))),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text((worker['name'] ?? '').toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              Text(_getCat(worker) + ' • ' + _getLoc(worker), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-            ])),
-          ]),
-          const Divider(height: 20),
-          const Text('📋 Hire / WhatsApp करें', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
-          const SizedBox(height: 14),
-          TextField(controller: nameCtrl, decoration: InputDecoration(hintText: 'आपका नाम *', prefixIcon: const Icon(Icons.person, color: Color(0xFF1565C0), size: 18), filled: true, fillColor: Colors.grey.shade100, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none))),
-          const SizedBox(height: 10),
-          TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, decoration: InputDecoration(hintText: 'आपका मोबाइल *', prefixIcon: const Icon(Icons.phone, color: Color(0xFF1565C0), size: 18), filled: true, fillColor: Colors.grey.shade100, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none))),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(
-              onPressed: () async {
-                final raw = (worker['whatsapp'] ?? worker['phone'] ?? '').toString();
-                final ph = raw.replaceAll(RegExp(r'[^0-9]'), '');
-                if (ph.isEmpty) return;
-                final num = (ph.startsWith('91') && ph.length > 10) ? ph : '91' + ph;
-                final cat = _getCat(worker);
-                final msgText = Uri.encodeComponent('नमस्ते, मुझे ' + cat + ' कारीगर चाहिए। काम धंधा ऐप से।');
-                final uri = Uri.parse('https://wa.me/' + num + '?text=' + msgText);
-                if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-              },
-              icon: const Text('💬', style: TextStyle(fontSize: 16)),
-              label: const Text('WhatsApp'),
-              style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF43A047), side: const BorderSide(color: Color(0xFF43A047)), padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              onPressed: () async {
-                if (nameCtrl.text.isEmpty || phoneCtrl.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('नाम और नंबर ज़रूरी है')));
-                  return;
+          // ── Workers list ──
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _buildQuery(),
+              builder: (ctx, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
                 }
-                await FirebaseFirestore.instance.collection('hire_requests').add({
-                  'workerId': worker['id'], 'workerName': worker['name'],
-                  'workerCategory': _getCat(worker), 'employerName': nameCtrl.text.trim(),
-                  'employerPhone': phoneCtrl.text.trim(), 'status': 'pending',
-                  'createdAt': FieldValue.serverTimestamp(),
-                });
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Request भेज दी गई!'), backgroundColor: Color(0xFF43A047)));
+                if (!snap.hasData || snap.data!.docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.person_off,
+                            size: 60, color: Colors.grey),
+                        const SizedBox(height: 12),
+                        const Text('No workers found',
+                            style:
+                                TextStyle(color: Colors.grey, fontSize: 15)),
+                        const SizedBox(height: 6),
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _selectedCategory = 'All';
+                            _selectedExp = 'All';
+                            _availableOnly = false;
+                            _maxSalary = 0;
+                          }),
+                          child: const Text('Clear filters'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                List<QueryDocumentSnapshot> docs = snap.data!.docs;
+
+                // Client-side filtering for experience and salary
+                docs = docs.where((d) {
+                  final w = d.data() as Map<String, dynamic>;
+                  // Experience filter
+                  if (_selectedExp != 'All') {
+                    final exp = (w['experience'] ?? '').toString().toLowerCase();
+                    if (_selectedExp == 'Fresher' &&
+                        !exp.contains('fresher') &&
+                        !exp.contains('0')) return false;
+                    if (_selectedExp == '1-3 साल') {
+                      final years = int.tryParse(
+                              exp.replaceAll(RegExp(r'[^0-9]'), '')) ??
+                          0;
+                      if (years < 1 || years > 3) return false;
+                    }
+                    if (_selectedExp == '3+ साल') {
+                      final years = int.tryParse(
+                              exp.replaceAll(RegExp(r'[^0-9]'), '')) ??
+                          0;
+                      if (years < 3) return false;
+                    }
+                  }
+                  // Salary filter
+                  if (_maxSalary > 0) {
+                    final sal = w['dailyWage'] ??
+                        w['salary'] ??
+                        w['expectedSalary'] ??
+                        0;
+                    final salNum = sal is int
+                        ? sal
+                        : int.tryParse(sal.toString().replaceAll(
+                                RegExp(r'[^0-9]'), '')) ??
+                            0;
+                    if (salNum > _maxSalary) return false;
+                  }
+                  return true;
+                }).toList();
+
+                // Client-side sort
+                if (_sortBy == 'Rating') {
+                  docs.sort((a, b) {
+                    final ra = (a.data()
+                            as Map<String, dynamic>)['rating'] as num? ??
+                        0;
+                    final rb = (b.data()
+                            as Map<String, dynamic>)['rating'] as num? ??
+                        0;
+                    return rb.compareTo(ra);
+                  });
+                } else if (_sortBy == 'Salary') {
+                  docs.sort((a, b) {
+                    final wa = a.data() as Map<String, dynamic>;
+                    final wb = b.data() as Map<String, dynamic>;
+                    final sa = (wa['dailyWage'] ?? wa['salary'] ?? 0) as num;
+                    final sb = (wb['dailyWage'] ?? wb['salary'] ?? 0) as num;
+                    return sa.compareTo(sb);
+                  });
+                }
+
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Text('No workers match your filters',
+                        style: TextStyle(color: Colors.grey)),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) {
+                    final w = docs[i].data() as Map<String, dynamic>;
+                    return _WorkerCard(worker: w);
+                  },
+                );
               },
-              icon: const Icon(Icons.send, size: 16),
-              label: const Text('Request भेजें'),
-            )),
-          ]),
-        ]),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Stream<QuerySnapshot> _buildQuery() {
+    Query q = _firestore.collection('workers');
+    if (_selectedCategory != 'All') {
+      q = q.where('category', isEqualTo: _selectedCategory);
+    }
+    if (_availableOnly) {
+      q = q.where('available', isEqualTo: true);
+    }
+    // Default ordering
+    if (_sortBy == 'Recent') {
+      q = q.orderBy('createdAt', descending: true);
+    }
+    return q.snapshots();
   }
 }
 
+// ─── WORKER CARD ────────────────────────────────────────────────────────────
+
 class _WorkerCard extends StatelessWidget {
   final Map<String, dynamic> worker;
-  final String Function(Map<String, dynamic>) getCat;
-  final String Function(Map<String, dynamic>) getLoc;
-  final VoidCallback onHire;
-  const _WorkerCard({required this.worker, required this.getCat, required this.getLoc, required this.onHire});
+
+  const _WorkerCard({required this.worker});
 
   @override
   Widget build(BuildContext context) {
-    final name = (worker['name'] ?? 'कारीगर').toString();
-    final rating = (worker['rating'] as num? ?? 0).toDouble();
-    final available = worker['available'] as bool? ?? false;
-    final verified = worker['verified'] as bool? ?? false;
-    final jobs = (worker['completedJobs'] as num? ?? 0).toInt();
-    final experience = (worker['experience'] ?? '').toString();
-    final dailyRate = worker['dailyRate'] as num?;
-    final emoji = (worker['emoji'] ?? '👷').toString();
-    final category = getCat(worker);
-    final location = getLoc(worker);
-    final state = (worker['state'] ?? '').toString();
-    final locStr = location.isNotEmpty ? (state.isNotEmpty ? location + ', ' + state : location) : state;
+    final name = worker['name'] ?? worker['naam'] ?? 'Worker';
+    final category = worker['category'] ?? worker['skill'] ?? '';
+    final location = worker['location'] ?? worker['jila'] ?? '';
+    final experience = worker['experience'] ?? '';
+    final salary = worker['dailyWage'] ?? worker['salary'] ?? '';
+    final phone = worker['phone'] ?? worker['mobile'] ?? '';
+    final available = worker['available'] == true;
+    final rating = (worker['rating'] ?? worker['avgRating'] ?? 0.0) as num;
+    final ratingCount = worker['ratingCount'] ?? 0;
+    final photoUrl = worker['photoUrl'] ?? '';
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Stack(children: [
-              CircleAvatar(radius: 28, backgroundColor: const Color(0xFF1565C0).withOpacity(0.1), child: Text(emoji, style: const TextStyle(fontSize: 26))),
-              if (available) Positioned(bottom: 0, right: 0, child: Container(width: 14, height: 14, decoration: BoxDecoration(color: const Color(0xFF43A047), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)))),
-            ]),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
-                if (verified) const Text('✅', style: TextStyle(fontSize: 12)),
-              ]),
-              const SizedBox(height: 3),
-              if (category.isNotEmpty) Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xFF1565C0).withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                child: Text(category.length > 20 ? category.substring(0, 20) : category, style: const TextStyle(fontSize: 11, color: Color(0xFF1565C0), fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(height: 4),
-              if (locStr.isNotEmpty) Row(children: [
-                const Icon(Icons.location_on, size: 12, color: Colors.grey),
-                const SizedBox(width: 2),
-                Flexible(child: Text(locStr, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-              ]),
-            ])),
-            if (rating > 0) Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.star, color: Color(0xFFFFC107), size: 14),
-                const SizedBox(width: 2),
-                Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFFFC107))),
-              ]),
-              if (jobs > 0) Text(jobs.toString() + ' jobs', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-            ]),
-          ]),
-          const SizedBox(height: 10),
-          Wrap(spacing: 8, runSpacing: 4, children: [
-            if (experience.isNotEmpty) _chip('⏱️ ' + experience, Colors.blue.shade50, Colors.blue.shade700),
-            if (dailyRate != null) _chip('₹' + dailyRate.toString() + '/दिन', Colors.orange.shade50, Colors.orange.shade800),
-            _chip(available ? '✅ उपलब्ध' : '⏳ Busy', available ? Colors.green.shade50 : Colors.red.shade50, available ? Colors.green.shade700 : Colors.red.shade700),
-          ]),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: available ? const Color(0xFF1565C0) : Colors.grey.shade400,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row: avatar + info + available badge
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Avatar
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: const Color(0xFF1565C0).withOpacity(0.1),
+                  backgroundImage:
+                      photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                  child: photoUrl.isEmpty
+                      ? Text(
+                          name[0].toUpperCase(),
+                          style: const TextStyle(
+                              fontSize: 22,
+                              color: Color(0xFF1565C0),
+                              fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(name,
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                          if (available)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: Colors.green.withOpacity(0.4)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.circle,
+                                      size: 8, color: Colors.green),
+                                  SizedBox(width: 4),
+                                  Text('Available',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (category.isNotEmpty)
+                        Text(category,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF1565C0),
+                                fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            onPressed: available ? onHire : null,
-            child: Text(available ? '📞 Hire करें / WhatsApp' : '⏳ अभी Busy है', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          )),
-        ]),
+            const SizedBox(height: 10),
+
+            // Star Rating
+            if (rating > 0) ...[
+              Row(
+                children: [
+                  _buildStars(rating.toDouble()),
+                  const SizedBox(width: 6),
+                  Text('${rating.toStringAsFixed(1)}',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange)),
+                  if (ratingCount > 0)
+                    Text('  ($ratingCount reviews)',
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Info chips
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (location.isNotEmpty)
+                  _chip(Icons.location_on, location, Colors.blue),
+                if (experience.isNotEmpty)
+                  _chip(Icons.work_history, experience, Colors.purple),
+                if (salary.isNotEmpty)
+                  _chip(Icons.currency_rupee, '₹$salary/day', Colors.green),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: phone.isNotEmpty
+                        ? () => _call(phone)
+                        : null,
+                    icon: const Icon(Icons.call, size: 16),
+                    label: const Text('Call'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green,
+                      side: const BorderSide(color: Colors.green),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: phone.isNotEmpty
+                        ? () => _whatsapp(phone, name, category)
+                        : null,
+                    icon: const Icon(Icons.chat, size: 16),
+                    label: const Text('WhatsApp'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF25D366),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _chip(String label, Color bg, Color fg) {
+  Widget _buildStars(double rating) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        if (i < rating.floor()) {
+          return const Icon(Icons.star, size: 16, color: Colors.orange);
+        } else if (i < rating) {
+          return const Icon(Icons.star_half, size: 16, color: Colors.orange);
+        } else {
+          return const Icon(Icons.star_border, size: 16, color: Colors.orange);
+        }
+      }),
+    );
+  }
+
+  Widget _chip(IconData icon, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-      child: Text(label, style: TextStyle(fontSize: 11, color: fg, fontWeight: FontWeight.w600)),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
+  }
+
+  Future<void> _call(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  Future<void> _whatsapp(String phone, String name, String skill) async {
+    final msg = Uri.encodeComponent(
+        'नमस्ते $name ji, मुझे $skill के लिए आपकी जरूरत है। KaamDhanda.in से contact कर रहा हूँ।');
+    final uri = Uri.parse('https://wa.me/91$phone?text=$msg');
+    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
